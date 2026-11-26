@@ -1069,11 +1069,7 @@ def route(path, body, a):
     if path == '/shop/list_shop/':
         return 200, {'gateway_type': 'IAP', 'items': [], 'phones': PHONES}
     if path == '/shop/verify_purchase/':
-        sku = str(body.get('sku') or '')
-        if sku == 'police_license':
-            a['police_license'] = True
-            save_state()
-        return 200, {'coin': a['coin'], 'characters': [], 'id': 0}
+        return 503, {'error': 'purchase verification service is not configured'}
     if path == '/shop/ipg/':
         return 400, {}
     if path == '/shop/list_gifts/':
@@ -1214,7 +1210,14 @@ def route(path, body, a):
         return 200, {'coin': a['coin'], 'restaurant': rest, 'hospital': hosp, 'bank': bank, 'police': police, 'stats': s}
     if path == '/game/hire_me/':
         job = body.get('job') or {}
-        price = int(body.get('price') or 0)
+        if not isinstance(job, dict):
+            return 400, {'error': 'invalid job'}
+        try:
+            price = int(body.get('price') or 0)
+        except (TypeError, ValueError, OverflowError):
+            return 400, {'error': 'invalid job price'}
+        if price < 0:
+            return 400, {'error': 'invalid job price'}
         title = str(job.get('title') or '')
         try:
             jtype = int(job.get('type'))
@@ -1236,7 +1239,10 @@ def route(path, body, a):
         log('hire_me ' + a['username'] + ' -> ' + title)
         return 200, {'coin': a['coin'], 'ok': True, 'title': title}
     if path == '/game/transfer_money/':
-        amount = int(body.get('amount') or body.get('coin') or 0)
+        try:
+            amount = int(body.get('amount') or body.get('coin') or 0)
+        except (TypeError, ValueError, OverflowError):
+            return 400, {'error': 'invalid transfer amount'}
         target_key = str(body.get('username') or body.get('receiver') or body.get('to') or body.get('handle') or '')
         fee = int(SYNC_PRICES.get('coin_transfer_fee', 0))
         if amount <= 0 or a['coin'] < amount + fee:
@@ -1267,7 +1273,7 @@ def route(path, body, a):
             return 200, {'member': None}
         return 200, {'member': {'id': t['username'], 'handle': t.get('handle'), 'cup': t.get('cup', 0), 'title': t.get('title', ''), 'coin': t.get('coin', 0)}}
     if path == '/game/list_transactions/':
-        return 200, {'transactions': list(reversed(a.get('transactions', []))[:100])}
+        return 200, {'transactions': list(reversed(a.get('transactions', [])))[:100]}
     # ---- matchmaking / servers ----
     if path == '/game/register/':
         mode = str(body.get('mode') or 'Race')
@@ -1349,7 +1355,7 @@ def route(path, body, a):
         mpath, bots = maps[idx]
         save_state()
         log('select_map game=' + str(gid) + ' stage=' + str(g['stage']) + ' -> ' + mpath)
-        return 200, {'map': {'id': g['stage'], 'path': mpath, 'max_players_count': 32, 'min_players_count': 1, 'bot_count': bots, 'bot_wait_remove': 100, 'bot_reset_time': 30}, 'settings': {'game_time': 90, 'lobby_time': 12, 'countdown_time': 5, 'result_time': 8, 'player_join_add_time': 2}}
+        return 200, {'map': {'id': g['stage'], 'path': mpath, 'max_players_count': 32, 'min_players_count': 4, 'bot_count': bots, 'bot_wait_remove': 100, 'bot_reset_time': 30}, 'settings': {'game_time': 90, 'lobby_time': 20, 'countdown_time': 5, 'result_time': 8, 'player_join_add_time': 2}}
     if path == '/game/results_v2/':
         key = str(body.get('container_id') or body.get('game_id') or '')
         game = state.setdefault('games', {}).get('match:' + key)
@@ -1626,7 +1632,7 @@ def route(path, body, a):
     if path in ('/game/ban_user/', '/game/report_message/'):
         return 200, {}
     log('unhandled route: ' + str(path))
-    return 200, {}
+    return 404, {'error': 'not found'}
 
 class Handler(BaseHTTPRequestHandler):
     protocol_version = 'HTTP/1.1'
@@ -1676,6 +1682,8 @@ class Handler(BaseHTTPRequestHandler):
             body = {}
         if not isinstance(body, dict):
             body = {}
+        # Only the verified HTTP header may set this internal authorization flag.
+        body.pop('_game_server_authorized', None)
         auth = self.headers.get('Authorization') or ''
         token = auth[4:] if auth.startswith('JWT ') else auth
         game_server_token = self.headers.get('X-Game-Server-Token') or ''
@@ -1722,7 +1730,13 @@ import select
 import signal
 import socket
 import subprocess
+import tempfile
+import zlib
 from pathlib import Path
+
+SERVER_UPDATE_VERSION = 'v30'
+# The small release builder embeds the scripts here; no remote assets are needed.
+_SERVER_HOTFIX_PAYLOAD = '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'
 
 GAME_PORT = int(os.environ.get('GAME_PORT', '9000'))
 GAME_PATH = '/game-socket'
@@ -1730,35 +1744,37 @@ RACE_PORT = int(os.environ.get('RACE_PORT', str(GAME_PORT + 1)))
 RACE_PATH = '/race-socket'
 GAME_PROCESSES = {}
 READY_MODES = set()
-ALL_MODES = ('FreeRide', 'Race')
-# Modes run by this service. Default keeps everything in one service. To split the
-# game over several services (each has its own RAM limit), set WORKER_MODES on a
-# worker service (e.g. FreeRide) and set REMOTE_FREERIDE / REMOTE_RACE (host:port of
-# that worker's HTTP port) plus a reduced WORKER_MODES on the hub.
-LOCAL_MODES = tuple(m.strip() for m in os.environ.get('WORKER_MODES', ','.join(ALL_MODES)).split(',') if m.strip() in ALL_MODES)
-REMOTE = {m: os.environ.get('REMOTE_' + m.upper(), '').strip() for m in ALL_MODES}
-HUB_URL = os.environ.get('HUB_URL', '').strip().rstrip('/')
 
 
-def _remote_target(mode):
-    host, _, port = REMOTE[mode].rpartition(':')
-    return host.strip('[]'), int(port)
-
-
-def _remote_ready(mode):
-    try:
-        host, port = _remote_target(mode)
-        conn = http.client.HTTPConnection(host, port, timeout=2)
-        conn.request('GET', '/health')
-        ok = conn.getresponse().status == 200
-        conn.close()
-        return ok
-    except (OSError, ValueError):
-        return False
-
-
-class DualStackServer(ThreadingHTTPServer):
-    address_family = socket.AF_INET6
+def prepare_game_pack(source):
+    if not _SERVER_HOTFIX_PAYLOAD:
+        return source
+    payload = json.loads(zlib.decompress(base64.b64decode(_SERVER_HOTFIX_PAYLOAD)))
+    stamp = hashlib.sha256((_SERVER_HOTFIX_PAYLOAD + str(source) + str(source.stat().st_size) + str(source.stat().st_mtime_ns)).encode()).hexdigest()[:20]
+    cache = Path(DATA_DIR) / 'server-hotfix-v30'
+    cache.mkdir(parents=True, exist_ok=True)
+    destination = cache / ('game-' + stamp + '.pck')
+    if destination.is_file() and destination.stat().st_size > 0:
+        log('Using cached v30 server pack; original game.pck is unchanged.')
+        return destination
+    with tempfile.TemporaryDirectory(prefix='build-', dir=cache) as temporary:
+        work = Path(temporary)
+        project = work / 'project'
+        project.mkdir()
+        (project / 'project.godot').write_text('config_version=5\n', encoding='utf-8')
+        helper = project / '__patch_builder__.gd'
+        helper.write_text(payload['builder'], encoding='utf-8')
+        script = work / 'server.gd'
+        script.write_text(payload['server'], encoding='utf-8')
+        pending = work / 'updated.pck'
+        args = [os.environ.get('GODOT_BIN', 'godot'), '--headless', '--path', str(project),
+                '--script', str(helper), '--', str(source), str(pending), str(script)]
+        result = subprocess.run(args, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=120)
+        if result.returncode != 0 or not pending.is_file() or 'error=0' not in result.stdout:
+            raise RuntimeError('Offline game pack update failed: ' + (result.stdout + result.stderr)[-4000:])
+        os.replace(pending, destination)
+    log('Built v30 server pack locally; no game assets were downloaded.')
+    return destination
 
 
 class UnifiedHandler(Handler):
@@ -1770,31 +1786,21 @@ class UnifiedHandler(Handler):
             if self.headers.get('Upgrade', '').lower() != 'websocket':
                 self._send(426, {'error': 'WebSocket upgrade required'})
                 return
-            mode = 'Race' if path == RACE_PATH else 'FreeRide'
-            if mode in LOCAL_MODES:
-                self.proxy_game('127.0.0.1', RACE_PORT if mode == 'Race' else GAME_PORT)
-            elif REMOTE[mode]:
-                try:
-                    self.proxy_game(*_remote_target(mode))
-                except ValueError:
-                    self._send(503, {'error': 'Game worker is misconfigured'})
-            else:
-                self._send(503, {'error': 'Game mode is not available'})
+            self.proxy_game(RACE_PORT if path == RACE_PATH else GAME_PORT)
         elif self.path.split('?', 1)[0] in ('/health', '/healthz'):
-            ready = (all(m in READY_MODES for m in LOCAL_MODES)
-                     and all(GAME_PROCESSES[m].poll() is None for m in LOCAL_MODES if m in GAME_PROCESSES)
-                     and all(_remote_ready(m) for m in ALL_MODES if m not in LOCAL_MODES and REMOTE[m]))
+            ready = len(READY_MODES) == 2 and all(p.poll() is None for p in GAME_PROCESSES.values())
             self._send(200 if ready else 503, {
                 'ok': ready, 'service': 'animal-rush-one-server',
                 'game_ready': ready, 'game_path': GAME_PATH, 'race_path': RACE_PATH,
+                'version': SERVER_UPDATE_VERSION,
             })
         else:
             super().do_GET()
 
-    def proxy_game(self, host, port):
+    def proxy_game(self, port):
         self.close_connection = True
         try:
-            upstream = socket.create_connection((host, port), timeout=5)
+            upstream = socket.create_connection(('127.0.0.1', port), timeout=5)
         except OSError:
             self._send(503, {'error': 'Game is starting; retry shortly'})
             return
@@ -1836,11 +1842,12 @@ def unified_main():
     pack = Path(os.environ.get('GAME_PACK', Path(__file__).with_name('game.pck'))).resolve()
     if not pack.is_file():
         raise SystemExit('Required game.pck was not found.')
+    pack = prepare_game_pack(pack)
     load_state()
     _backfill_ids()
     # A fresh process must register its own live endpoint; persisted addresses may be stale.
     state['servers'] = {'race': [], 'freeride': []}
-    httpd = (DualStackServer if HUB_URL else ThreadingHTTPServer)(('::' if HUB_URL else HOST, PORT), UnifiedHandler)
+    httpd = ThreadingHTTPServer((HOST, PORT), UnifiedHandler)
     environment = os.environ.copy()
     environment['ANIMAL_RUSH_SERVER_TOKEN'] = GAME_SERVER_TOKEN
     stopped = threading.Event()
@@ -1860,7 +1867,8 @@ def unified_main():
                     print('[' + mode + '] ' + line.rstrip(), flush=True)
                     if 'Set State to Lobby' in line:
                         READY_MODES.add(mode)
-                process.wait()
+                return_code = process.wait()
+                log(mode + ' worker exited with code=' + str(return_code))
             except OSError as exc:
                 log('Cannot start ' + mode + ': ' + str(exc))
             finally:
@@ -1870,27 +1878,12 @@ def unified_main():
                 stopped.wait(1)
 
     try:
-        if HUB_URL:
-            # Worker service: the game servers register with the hub, so wait for it.
-            hub = urlsplit(HUB_URL)
-            for _ in range(120):
-                try:
-                    conn = http.client.HTTPConnection(hub.hostname, hub.port or 80, timeout=3)
-                    conn.request('GET', '/health')
-                    conn.getresponse()
-                    conn.close()
-                    break
-                except OSError:
-                    time.sleep(2)
-        backend_url = HUB_URL or 'http://127.0.0.1:' + str(PORT)
         for mode, port, path in [('FreeRide', GAME_PORT, GAME_PATH), ('Race', RACE_PORT, RACE_PATH)]:
-            if mode not in LOCAL_MODES:
-                continue
             args = [os.environ.get('GODOT_BIN', 'godot'), '--headless', '--main-pack', str(pack), '--',
                 'server=1', 'transport=websocket', 'mode=' + mode, 'ip=127.0.0.1',
                 'port=' + str(port), 'register_port=' + str(public_port),
                 'public_ip=' + scheme + '://' + parsed.netloc + path,
-                'token=' + GAME_SERVER_TOKEN, 'backend=' + backend_url]
+                'token=' + GAME_SERVER_TOKEN, 'backend=http://127.0.0.1:' + str(PORT)]
             threading.Thread(target=monitor_game, args=(mode, args), daemon=True).start()
         signal.signal(signal.SIGTERM, shutdown)
         signal.signal(signal.SIGINT, shutdown)
