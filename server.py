@@ -1735,7 +1735,7 @@ ALL_MODES = ('FreeRide', 'Race')
 # game over several services (each has its own RAM limit), set WORKER_MODES on a
 # worker service (e.g. FreeRide) and set REMOTE_FREERIDE / REMOTE_RACE (host:port of
 # that worker's HTTP port) plus a reduced WORKER_MODES on the hub.
-LOCAL_MODES = tuple(m.strip() for m in os.environ.get('WORKER_MODES', ','.join(ALL_MODES)).split(',') if m.strip())
+LOCAL_MODES = tuple(m.strip() for m in os.environ.get('WORKER_MODES', ','.join(ALL_MODES)).split(',') if m.strip() in ALL_MODES)
 REMOTE = {m: os.environ.get('REMOTE_' + m.upper(), '').strip() for m in ALL_MODES}
 HUB_URL = os.environ.get('HUB_URL', '').strip().rstrip('/')
 
