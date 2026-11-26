@@ -613,6 +613,26 @@ def route_admin(path, body):
             if len(out) >= limit:
                 break
         return 200, {'logs': out}
+    if path == '/admin/server_rename/':
+        s = _find_server(body.get('server_id'))
+        if s is None:
+            return 404, {'error': 'no such server'}
+        new_name = str(body.get('name') or '').strip()[:40]
+        if not new_name:
+            return 400, {'error': 'name is empty'}
+        s['name'] = new_name
+        s['name_override'] = True
+        _log_event('server_rename', ADMIN_ACTOR, s.get('name', ''), 'id=' + str(s.get('id')))
+        save_state()
+        return 200, {'ok': True}
+    if path == '/admin/server_hide/':
+        s = _find_server(body.get('server_id'))
+        if s is None:
+            return 404, {'error': 'no such server'}
+        s['hidden'] = bool(body.get('hidden'))
+        _log_event('server_hide' if s['hidden'] else 'server_show', ADMIN_ACTOR, s.get('name', ''), 'id=' + str(s.get('id')))
+        save_state()
+        return 200, {'ok': True}
     if path == '/admin/chat/':
         _ensure_chat()
         room = str(body.get('room') or 'PublicChat')[:64]
@@ -620,6 +640,15 @@ def route_admin(path, body):
         msgs = state['chat']['rooms'].get(room, [])
         out = [m for m in msgs if not user_f or user_f in str(m.get('sender_id', '')).lower() or user_f in str(m.get('handle', '')).lower()]
         return 200, {'rooms': sorted(state['chat']['rooms'].keys()), 'messages': list(reversed(out))[:300]}
+    if path == '/admin/servers/':
+        _prune_game_servers()
+        rows = []
+        for mode_key in ('freeride', 'race'):
+            for s in state.setdefault('servers', {}).setdefault(mode_key, []):
+                rows.append({'id': s.get('id'), 'mode': s.get('mode'), 'name': s.get('name', ''), 'ip': s.get('ip', ''),
+                             'players': s.get('players_joined', 0), 'max': s.get('max_players_start', 32),
+                             'state': s.get('state', ''), 'hidden': bool(s.get('hidden')), 'updated_at': s.get('updated_at', 0)})
+        return 200, {'servers': rows}
     if path == '/admin/police/':
         calls = list(state.get('police_calls', []))
         return 200, {'calls': list(reversed(calls))[:300]}
@@ -1370,7 +1399,8 @@ def route(path, body, a):
             if x['ip'] == ip and x['port'] == port:
                 x['updated_at'] = now
                 x['transport'] = transport
-                x['name'] = _server_name(mode, ip, x['id'])
+                if not x.get('name_override'):
+                    x['name'] = _server_name(mode, ip, x['id'])
                 save_state()
                 return 200, {'id': x['id'], 'is_test': False, 'total_stage': x['total_stage']}
         state['serverCounter'] += 1
@@ -1404,7 +1434,7 @@ def route(path, body, a):
         return 200, {'game_id': game_id, 'container_id': container_id, 'qualified_count': max(1, (count + 1) // 2)}
     if path == '/game/find_game_v2/':
         _prune_game_servers(now)
-        alive = [s for s in state.setdefault('servers', {}).setdefault('race', []) if s.get('state') in ('Lobby', 'Loading') and s['players_joined'] < s['max_players_start']]
+        alive = [s for s in state.setdefault('servers', {}).setdefault('race', []) if not s.get('hidden') and s.get('state') in ('Lobby', 'Loading') and s['players_joined'] < s['max_players_start']]
         if not alive:
             return 400, {}
         best = alive[0]
@@ -1444,7 +1474,7 @@ def route(path, body, a):
         return 200, {'my_result': {'coin': result['coin'], 'cup': result['cup'], 'crown': result['crown']}, 'winner': {'id': winner_id} if winner_id else None}
     if path == '/game/list_freeride_servers/':
         _prune_game_servers(now)
-        return 200, {'servers': [_public_server(server) for server in state.setdefault('servers', {}).setdefault('freeride', [])]}
+        return 200, {'servers': [_public_server(server) for server in state.setdefault('servers', {}).setdefault('freeride', []) if not server.get('hidden')]}
     if path == '/game/verify_server_password/':
         server = _find_server(body.get('server_id') or body.get('id'))
         if server is None:

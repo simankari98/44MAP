@@ -54,6 +54,7 @@ small{color:var(--muted)}
     <button id="tab-bans" onclick="tab('bans')">سابقه بن</button>
     <button id="tab-chat" onclick="tab('chat')">سابقه چت</button>
     <button id="tab-police" onclick="tab('police')">سابقه پلیس</button>
+    <button id="tab-servers" onclick="tab('servers')">لابی‌ها</button>
   </div>
   <input id="search" placeholder="جستجو نام..." oninput="render()" style="min-width:200px">
   <input id="filterBox" placeholder="فیلتر: نام کاربر" oninput="renderTab()" style="display:none;min-width:200px">
@@ -98,7 +99,7 @@ async function refresh(){
 
 function tab(t){
   TAB=t;
-  ['users','perms','bans','chat','police'].forEach(function(x){document.getElementById('tab-'+x).classList.toggle('on',x===t);});
+  ['users','perms','bans','chat','police','servers'].forEach(function(x){document.getElementById('tab-'+x).classList.toggle('on',x===t);});
   document.getElementById('usersView').style.display=t==='users'?'block':'none';
   document.getElementById('view').style.display=t==='users'?'none':'block';
   document.getElementById('search').style.display=t==='users'?'inline-block':'none';
@@ -133,7 +134,7 @@ function setView(head, rows, empty){
   document.getElementById('vbody').innerHTML=rows.length?rows.join(''):'<tr><td colspan="'+head.length+'">'+esc(empty)+'</td></tr>';
 }
 function cell(v,cls){return '<td'+(cls?' class="'+cls+'"':'')+'>'+esc(v)+'</td>';}
-var KIND_FA={grant_bazras:'دادن بازرسی',revoke_bazras:'گرفتن بازرسی',grant_admin:'دادن ادمین',revoke_admin:'گرفتن ادمین',ban:'بن',unban:'رفع بن',give_coin:'افزودن سکه',set_coin:'تعیین سکه',set_title:'تغییر عنوان'};
+var KIND_FA={server_rename:'تغییر اسم لابی',server_hide:'پنهان کردن لابی',server_show:'نمایش لابی',grant_bazras:'دادن بازرسی',revoke_bazras:'گرفتن بازرسی',grant_admin:'دادن ادمین',revoke_admin:'گرفتن ادمین',ban:'بن',unban:'رفع بن',give_coin:'افزودن سکه',set_coin:'تعیین سکه',set_title:'تغییر عنوان'};
 
 async function renderTab(){
   var f=filterVal();
@@ -161,6 +162,18 @@ async function renderTab(){
     setView(['زمان (UTC)','نام نمایشی','کاربری','پیام'],crows,'پیامی نیست (فقط ۲۰۰ پیام آخر هر اتاق نگه داشته می‌شود)');
     return;
   }
+  if(TAB==='servers'){
+    var sv=await api('/admin/servers/');
+    var srows=(sv.servers||[]).map(function(s){
+      return '<tr>'+cell(s.id)+cell(s.mode)+cell(s.name)+cell(s.players+' / '+s.max)+cell(s.state)+
+        '<td><span class="tag '+(s.hidden?'bad':'on')+'">'+(s.hidden?'پنهان':'نمایش')+'</span></td>'+
+        '<td><div class="row"><button onclick="renameServer('+s.id+')">تغییر اسم</button>'+
+        (s.hidden?'<button class="g" onclick="hideServer('+s.id+',false)">نمایش</button>':'<button class="b" onclick="hideServer('+s.id+',true)">پنهان کن</button>')+
+        '</div></td></tr>';
+    });
+    setView(['شناسه','نوع','نام','بازیکن','وضعیت','نمایش','عملیات'],srows,'لابی فعالی نیست');
+    return;
+  }
   if(TAB==='police'){
     var p=await api('/admin/police/');
     var fl=f.toLowerCase();
@@ -171,6 +184,8 @@ async function renderTab(){
   }
 }
 
+async function renameServer(id){var n=prompt('اسم جدید لابی؟');if(n===null||!n.trim())return;await api('/admin/server_rename/',{server_id:id,name:n.trim()});toast('اسم عوض شد');renderTab();}
+async function hideServer(id,v){await api('/admin/server_hide/',{server_id:id,hidden:v});toast(v?'پنهان شد':'نمایش داده شد');renderTab();}
 function userHist(username){
   document.getElementById('filterBox').value=username;
   tab('bans');
