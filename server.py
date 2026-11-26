@@ -1730,6 +1730,35 @@ RACE_PORT = int(os.environ.get('RACE_PORT', str(GAME_PORT + 1)))
 RACE_PATH = '/race-socket'
 GAME_PROCESSES = {}
 READY_MODES = set()
+ALL_MODES = ('FreeRide', 'Race')
+# Modes run by this service. Default keeps everything in one service. To split the
+# game over several services (each has its own RAM limit), set WORKER_MODES on a
+# worker service (e.g. FreeRide) and set REMOTE_FREERIDE / REMOTE_RACE (host:port of
+# that worker's HTTP port) plus a reduced WORKER_MODES on the hub.
+LOCAL_MODES = tuple(m.strip() for m in os.environ.get('WORKER_MODES', ','.join(ALL_MODES)).split(',') if m.strip() in ALL_MODES)
+REMOTE = {m: os.environ.get('REMOTE_' + m.upper(), '').strip() for m in ALL_MODES}
+HUB_URL = os.environ.get('HUB_URL', '').strip().rstrip('/')
+
+
+def _remote_target(mode):
+    host, _, port = REMOTE[mode].rpartition(':')
+    return host.strip('[]'), int(port)
+
+
+def _remote_ready(mode):
+    try:
+        host, port = _remote_target(mode)
+        conn = http.client.HTTPConnection(host, port, timeout=2)
+        conn.request('GET', '/health')
+        ok = conn.getresponse().status == 200
+        conn.close()
+        return ok
+    except (OSError, ValueError):
+        return False
+
+
+class DualStackServer(ThreadingHTTPServer):
+    address_family = socket.AF_INET6
 
 
 class UnifiedHandler(Handler):
@@ -1741,9 +1770,20 @@ class UnifiedHandler(Handler):
             if self.headers.get('Upgrade', '').lower() != 'websocket':
                 self._send(426, {'error': 'WebSocket upgrade required'})
                 return
-            self.proxy_game(RACE_PORT if path == RACE_PATH else GAME_PORT)
+            mode = 'Race' if path == RACE_PATH else 'FreeRide'
+            if mode in LOCAL_MODES:
+                self.proxy_game('127.0.0.1', RACE_PORT if mode == 'Race' else GAME_PORT)
+            elif REMOTE[mode]:
+                try:
+                    self.proxy_game(*_remote_target(mode))
+                except ValueError:
+                    self._send(503, {'error': 'Game worker is misconfigured'})
+            else:
+                self._send(503, {'error': 'Game mode is not available'})
         elif self.path.split('?', 1)[0] in ('/health', '/healthz'):
-            ready = len(READY_MODES) == 2 and all(p.poll() is None for p in GAME_PROCESSES.values())
+            ready = (all(m in READY_MODES for m in LOCAL_MODES)
+                     and all(GAME_PROCESSES[m].poll() is None for m in LOCAL_MODES if m in GAME_PROCESSES)
+                     and all(_remote_ready(m) for m in ALL_MODES if m not in LOCAL_MODES and REMOTE[m]))
             self._send(200 if ready else 503, {
                 'ok': ready, 'service': 'animal-rush-one-server',
                 'game_ready': ready, 'game_path': GAME_PATH, 'race_path': RACE_PATH,
@@ -1751,10 +1791,10 @@ class UnifiedHandler(Handler):
         else:
             super().do_GET()
 
-    def proxy_game(self, port):
+    def proxy_game(self, host, port):
         self.close_connection = True
         try:
-            upstream = socket.create_connection(('127.0.0.1', port), timeout=5)
+            upstream = socket.create_connection((host, port), timeout=5)
         except OSError:
             self._send(503, {'error': 'Game is starting; retry shortly'})
             return
@@ -1800,7 +1840,7 @@ def unified_main():
     _backfill_ids()
     # A fresh process must register its own live endpoint; persisted addresses may be stale.
     state['servers'] = {'race': [], 'freeride': []}
-    httpd = ThreadingHTTPServer((HOST, PORT), UnifiedHandler)
+    httpd = (DualStackServer if HUB_URL else ThreadingHTTPServer)(('::' if HUB_URL else HOST, PORT), UnifiedHandler)
     environment = os.environ.copy()
     environment['ANIMAL_RUSH_SERVER_TOKEN'] = GAME_SERVER_TOKEN
     stopped = threading.Event()
@@ -1830,12 +1870,27 @@ def unified_main():
                 stopped.wait(1)
 
     try:
+        if HUB_URL:
+            # Worker service: the game servers register with the hub, so wait for it.
+            hub = urlsplit(HUB_URL)
+            for _ in range(120):
+                try:
+                    conn = http.client.HTTPConnection(hub.hostname, hub.port or 80, timeout=3)
+                    conn.request('GET', '/health')
+                    conn.getresponse()
+                    conn.close()
+                    break
+                except OSError:
+                    time.sleep(2)
+        backend_url = HUB_URL or 'http://127.0.0.1:' + str(PORT)
         for mode, port, path in [('FreeRide', GAME_PORT, GAME_PATH), ('Race', RACE_PORT, RACE_PATH)]:
+            if mode not in LOCAL_MODES:
+                continue
             args = [os.environ.get('GODOT_BIN', 'godot'), '--headless', '--main-pack', str(pack), '--',
                 'server=1', 'transport=websocket', 'mode=' + mode, 'ip=127.0.0.1',
                 'port=' + str(port), 'register_port=' + str(public_port),
                 'public_ip=' + scheme + '://' + parsed.netloc + path,
-                'token=' + GAME_SERVER_TOKEN, 'backend=http://127.0.0.1:' + str(PORT)]
+                'token=' + GAME_SERVER_TOKEN, 'backend=' + backend_url]
             threading.Thread(target=monitor_game, args=(mode, args), daemon=True).start()
         signal.signal(signal.SIGTERM, shutdown)
         signal.signal(signal.SIGINT, shutdown)
