@@ -29,4 +29,5 @@ COPY server.py admin_panel.html /app/
 
 ENV PYTHONUNBUFFERED=1 DATA_DIR=/data PORT=8080 GAME_PORT=9000
 EXPOSE 8080
+
 CMD ["python", "server.py"]
