@@ -25,7 +25,7 @@ RUN python -c "import gzip, shutil; source=gzip.open('game.pck.gz', 'rb'); targe
     && rm game.pck.gz \
     && ls -lh /app/game.pck
 
-COPY server.py /app/
+COPY server.py admin_panel.html /app/
 
 ENV PYTHONUNBUFFERED=1 DATA_DIR=/data PORT=8080 GAME_PORT=9000
 EXPOSE 8080
