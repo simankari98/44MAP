@@ -379,7 +379,8 @@ def _find_account(key):
 def _admin_ok(body):
     key = os.environ.get('ADMIN_KEY', '')
     candidate = str((body or {}).get('key') or '')
-    return bool(key) and hmac.compare_digest(candidate, key)
+    # compare_digest raises TypeError on non-ASCII str, so compare UTF-8 bytes.
+    return bool(key) and hmac.compare_digest(candidate.encode('utf-8'), key.encode('utf-8'))
 
 
 def _online_count():
@@ -421,6 +422,19 @@ def _server_owned_by(server, account):
     return bool(server and account and (
         server.get('owner_id') == account.get('username') or account.get('free_admin')
     ))
+
+
+def _server_name(mode, ip, sid):
+    # SERVER_NAMES="host-part=Display Name;host-part=Display Name"
+    # The first entry whose host-part appears in the registered address wins.
+    for pair in os.environ.get('SERVER_NAMES', '').split(';'):
+        if '=' not in pair:
+            continue
+        needle, label = pair.split('=', 1)
+        needle, label = needle.strip(), label.strip()
+        if needle and label and needle in ip:
+            return label
+    return ('FreeRide ' if mode == 'FreeRide' else 'Race ') + 'Server ' + str(sid)
 
 
 def _public_server(server):
@@ -570,8 +584,12 @@ def route_admin(path, body):
     target = _find_account(body.get('id') or body.get('user_id') or body.get('username'))
     if target is None:
         return 404, {'error': 'no such user'}
+    try:
+        amount = int(body.get('amount') or 0)
+    except (TypeError, ValueError):
+        return 400, {'error': 'amount must be a whole number'}
     if path == '/admin/give_coin/':
-        target['coin'] = int(target.get('coin', 0)) + int(body.get('amount') or 0)
+        target['coin'] = int(target.get('coin', 0)) + amount
     elif path == '/admin/set_title/':
         target['title'] = str(body.get('title') or '')
         target['title_color'] = str(body.get('title_color') or 'FFFFFF')
@@ -587,7 +605,7 @@ def route_admin(path, body):
     elif path == '/admin/unban/':
         target['ban_time'] = 0
     elif path == '/admin/set_coin/':
-        target['coin'] = int(body.get('amount') or 0)
+        target['coin'] = amount
     else:
         return 404, {'error': 'unknown admin route'}
     save_state()
@@ -1301,11 +1319,12 @@ def route(path, body, a):
             if x['ip'] == ip and x['port'] == port:
                 x['updated_at'] = now
                 x['transport'] = transport
+                x['name'] = _server_name(mode, ip, x['id'])
                 save_state()
                 return 200, {'id': x['id'], 'is_test': False, 'total_stage': x['total_stage']}
         state['serverCounter'] += 1
         sid = state['serverCounter']
-        entry = {'id': sid, 'mode': mode, 'ip': ip, 'port': port, 'players_joined': 0, 'state': 'Lobby', 'map_id': 0, 'bot_count': 0, 'max_players_start': 32, 'total_stage': 3, 'owner_id': a.get('username') if a else None, 'password_hash': '', 'updated_at': now, 'name': ('FreeRide ' if mode == 'FreeRide' else 'Race ') + 'Server ' + str(sid)}
+        entry = {'id': sid, 'mode': mode, 'ip': ip, 'port': port, 'players_joined': 0, 'state': 'Lobby', 'map_id': 0, 'bot_count': 0, 'max_players_start': 32, 'total_stage': 3, 'owner_id': a.get('username') if a else None, 'password_hash': '', 'updated_at': now, 'name': _server_name(mode, ip, sid)}
         entry['transport'] = transport
         lst.append(entry)
         save_state()
