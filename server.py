@@ -376,6 +376,9 @@ def _find_account(key):
     return None
 
 
+ADMIN_ACTOR = 'ادمین (کلید)'
+
+
 def _admin_ok(body):
     key = os.environ.get('ADMIN_KEY', '')
     candidate = str((body or {}).get('key') or '')
@@ -576,11 +579,50 @@ def admin_users():
     return out
 
 
+def _log_event(kind, actor, target, detail=''):
+    logs = state.setdefault('admin_log', [])
+    nxt = int(state.get('admin_log_next', 1))
+    state['admin_log_next'] = nxt + 1
+    logs.append({'id': nxt, 'kind': kind, 'actor': str(actor or '?'), 'target': str(target or ''),
+                 'detail': str(detail)[:200], 'time': time.strftime('%Y-%m-%dT%H:%M:%S', time.gmtime())})
+    if len(logs) > 5000:
+        del logs[0:len(logs) - 5000]
+
+
 def route_admin(path, body):
     if not _admin_ok(body):
         return 403, {'error': 'bad admin key'}
     if path == '/admin/users/':
         return 200, {'users': admin_users()}
+    if path == '/admin/logs/':
+        kinds = body.get('kinds') or []
+        if isinstance(kinds, str):
+            kinds = [kinds]
+        user_f = str(body.get('user') or '').strip().lower()
+        try:
+            limit = max(1, min(500, int(body.get('limit') or 200)))
+        except (TypeError, ValueError):
+            limit = 200
+        out = []
+        for e in reversed(state.get('admin_log', [])):
+            if kinds and e.get('kind') not in kinds:
+                continue
+            if user_f and user_f not in e.get('target', '').lower() and user_f not in e.get('actor', '').lower():
+                continue
+            out.append(e)
+            if len(out) >= limit:
+                break
+        return 200, {'logs': out}
+    if path == '/admin/chat/':
+        _ensure_chat()
+        room = str(body.get('room') or 'PublicChat')[:64]
+        user_f = str(body.get('user') or '').strip().lower()
+        msgs = state['chat']['rooms'].get(room, [])
+        out = [m for m in msgs if not user_f or user_f in str(m.get('sender_id', '')).lower() or user_f in str(m.get('handle', '')).lower()]
+        return 200, {'rooms': sorted(state['chat']['rooms'].keys()), 'messages': list(reversed(out))[:300]}
+    if path == '/admin/police/':
+        calls = list(state.get('police_calls', []))
+        return 200, {'calls': list(reversed(calls))[:300]}
     target = _find_account(body.get('id') or body.get('user_id') or body.get('username'))
     if target is None:
         return 404, {'error': 'no such user'}
@@ -590,22 +632,31 @@ def route_admin(path, body):
         return 400, {'error': 'amount must be a whole number'}
     if path == '/admin/give_coin/':
         target['coin'] = int(target.get('coin', 0)) + amount
+        _log_event('give_coin', ADMIN_ACTOR, target['username'], amount)
     elif path == '/admin/set_title/':
         target['title'] = str(body.get('title') or '')
         target['title_color'] = str(body.get('title_color') or 'FFFFFF')
+        _log_event('set_title', ADMIN_ACTOR, target['username'], target['title'])
     elif path == '/admin/grant_bazras/':
-        v = body.get('value')
-        target['bazras'] = bool(v) if v is not None else True
-        if target['bazras']:
-            target.setdefault('free_admin', False)
+        if body.get('value') is not None:
+            target['bazras'] = bool(body.get('value'))
+            _log_event('grant_bazras' if target['bazras'] else 'revoke_bazras', ADMIN_ACTOR, target['username'])
         if body.get('admin') is not None:
             target['free_admin'] = bool(body.get('admin'))
+            _log_event('grant_admin' if target['free_admin'] else 'revoke_admin', ADMIN_ACTOR, target['username'])
+        if body.get('value') is None and body.get('admin') is None:
+            target['bazras'] = True
+            _log_event('grant_bazras', ADMIN_ACTOR, target['username'])
     elif path == '/admin/ban/':
-        target['ban_time'] = int(float(body.get('hours') or 1) * 3600)
+        hours = float(body.get('hours') or 1)
+        target['ban_time'] = int(hours * 3600)
+        _log_event('ban', ADMIN_ACTOR, target['username'], str(hours) + ' ساعت')
     elif path == '/admin/unban/':
         target['ban_time'] = 0
+        _log_event('unban', ADMIN_ACTOR, target['username'])
     elif path == '/admin/set_coin/':
         target['coin'] = amount
+        _log_event('set_coin', ADMIN_ACTOR, target['username'], amount)
     else:
         return 404, {'error': 'unknown admin route'}
     save_state()
@@ -1606,6 +1657,7 @@ def route(path, body, a):
                 target['ban_time'] = int(body.get('ban_time') or 0)
                 target['jail_time'] = int(body.get('jail_time') or 0)
                 target['in_prison'] = target['jail_time'] > 0
+                _log_event('ban', (a or {}).get('username', 'پلیس'), target['username'], 'گزارش پلیس: ' + str(target['ban_time'] // 3600) + ' ساعت')
                 save_state()
                 return 200, {'job_done': True}
             return 200, {'job_done': False}
@@ -1634,12 +1686,14 @@ def route(path, body, a):
         t = _find_account(body.get('backend_id'))
         if t is not None:
             t['ban_time'] = int(float(body.get('time') or 1) * 3600)
+            _log_event('ban', (a or {}).get('username', 'ادمین آزاد'), t['username'], 'بازی آزاد')
             save_state()
         return 200, {}
     if path == '/game/free_admin_unban/':
         t = _find_account(body.get('backend_id'))
         if t is not None:
             t['ban_time'] = 0
+            _log_event('unban', (a or {}).get('username', 'ادمین آزاد'), t['username'], 'بازی آزاد')
             save_state()
         return 200, {}
     if path == '/game/free_admin_set_title/':

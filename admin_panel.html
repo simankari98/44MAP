@@ -16,6 +16,7 @@ button:hover{border-color:var(--accent)}
 button.p{background:var(--accent);color:#06111f;border-color:transparent;font-weight:700}
 button.g{background:var(--ok);color:#04160a;border-color:transparent}
 button.b{background:var(--bad);color:#1a0605;border-color:transparent}
+button.on{border-color:var(--accent);color:var(--accent)}
 .wrap{padding:16px 18px}
 table{width:100%;border-collapse:collapse;font-size:14px}
 th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
@@ -24,13 +25,17 @@ tr:hover td{background:#151922}
 .coin{color:var(--warn);font-weight:700}
 .tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid var(--line);color:var(--muted)}
 .tag.on{color:var(--ok);border-color:#1f5c37}
+.tag.bad{color:var(--bad);border-color:#5c2520}
 .stat{display:inline-flex;gap:6px;align-items:center;color:var(--muted);font-size:13px;margin-inline-start:auto}
 .row{display:flex;gap:6px;flex-wrap:wrap}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
 .toast{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:#1d222c;border:1px solid var(--line);padding:10px 16px;border-radius:12px;opacity:0;transition:.2s;pointer-events:none}
 .toast.show{opacity:1}
 .gate{max-width:360px;margin:80px auto;padding:22px;background:var(--card);border:1px solid var(--line);border-radius:16px;display:flex;flex-direction:column;gap:10px}
 .gate h2{margin:0;font-size:16px}
 small{color:var(--muted)}
+.wrapx{overflow-x:auto}
+.msg{white-space:normal;max-width:420px}
 </style>
 </head>
 <body>
@@ -42,25 +47,38 @@ small{color:var(--muted)}
 </div>
 <div id="app" style="display:none">
 <header>
-  <h1>مدیریت کاربران</h1>
+  <h1>مدیریت</h1>
+  <div class="tabs">
+    <button id="tab-users" class="on" onclick="tab('users')">کاربران</button>
+    <button id="tab-perms" onclick="tab('perms')">پنل اعطای مجوز</button>
+    <button id="tab-bans" onclick="tab('bans')">سابقه بن</button>
+    <button id="tab-chat" onclick="tab('chat')">سابقه چت</button>
+    <button id="tab-police" onclick="tab('police')">سابقه پلیس</button>
+  </div>
   <input id="search" placeholder="جستجو نام..." oninput="render()" style="min-width:200px">
-  <button onclick="load()">به‌روزرسانی</button>
+  <input id="filterBox" placeholder="فیلتر: نام کاربر" oninput="renderTab()" style="display:none;min-width:200px">
+  <button onclick="refresh()">به‌روزرسانی</button>
   <button class="p" onclick="giveAll()">سکه به همه</button>
   <span class="stat" id="stat"></span>
   <button onclick="localStorage.removeItem('animal_admin_key');location.reload()">خروج</button>
 </header>
-<div class="wrap">
+<div class="wrap" id="usersView">
+<div class="wrapx">
 <table>
 <thead><tr><th>#</th><th>شناسه</th><th>نام</th><th>سکه</th><th>جام</th><th>عنوان</th><th>دسترسی</th><th>عملیات</th></tr></thead>
 <tbody id="rows"></tbody>
 </table>
 </div>
 </div>
+<div class="wrap" id="view" style="display:none"><div class="wrapx"><table><thead id="vhead"></thead><tbody id="vbody"></tbody></table></div></div>
+</div>
 <div class="toast" id="toast"></div>
 <script>
 var KEY='';
 var USERS=[];
+var TAB='users';
 function toast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},1600);}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function saveKey(){KEY=document.getElementById('keyInput').value.trim();if(!KEY){toast('کلید لازم است');return;}localStorage.setItem('animal_admin_key',KEY);start();}
 async function api(path,body){
   body=body||{};body.key=KEY;
@@ -69,16 +87,33 @@ async function api(path,body){
   if(r.status===403){toast('کلید غلط است');localStorage.removeItem('animal_admin_key');location.reload();}
   return j;
 }
-async function load(){var j=await api('/admin/users/');USERS=(j.users||[]);render();document.getElementById('stat').textContent=USERS.length+' کاربر';}
 function money(n){return Number(n||0).toLocaleString('en-US');}
+function filterVal(){return document.getElementById('filterBox').value.trim();}
+
+async function refresh(){
+  var j=await api('/admin/users/');USERS=(j.users||[]);
+  document.getElementById('stat').textContent=USERS.length+' کاربر';
+  if(TAB==='users')render();else renderTab();
+}
+
+function tab(t){
+  TAB=t;
+  ['users','perms','bans','chat','police'].forEach(function(x){document.getElementById('tab-'+x).classList.toggle('on',x===t);});
+  document.getElementById('usersView').style.display=t==='users'?'block':'none';
+  document.getElementById('view').style.display=t==='users'?'none':'block';
+  document.getElementById('search').style.display=t==='users'?'inline-block':'none';
+  document.getElementById('filterBox').style.display=t==='users'?'none':'inline-block';
+  renderTab();
+}
+
 function render(){
   var q=document.getElementById('search').value.trim().toLowerCase();
   var rows=USERS.filter(function(u){return !q||String(u.handle||'').toLowerCase().includes(q)||String(u.username||'').toLowerCase().includes(q);});
   var h='';
   rows.forEach(function(u){
-    var acc=(u.bazras?'<span class="tag on">بازرسی</span> ':'')+(u.free_admin?'<span class="tag on">ادمین</span> ':'')+(u.ban_time>0?'<span class="tag">بن</span>':'');
-    h+='<tr><td>'+u.id+'</td><td>'+u.username+'</td><td>'+u.handle+'</td>'+
-      '<td class="coin">'+money(u.coin)+'</td><td>'+money(u.cup)+'</td><td>'+(u.title||'-')+'</td><td>'+acc+'</td>'+
+    var acc=(u.bazras?'<span class="tag on">بازرسی</span> ':'')+(u.free_admin?'<span class="tag on">ادمین</span> ':'')+(u.ban_time>0?'<span class="tag bad">بن</span>':'');
+    h+='<tr><td>'+esc(u.id)+'</td><td>'+esc(u.username)+'</td><td>'+esc(u.handle)+'</td>'+
+      '<td class="coin">'+money(u.coin)+'</td><td>'+money(u.cup)+'</td><td>'+esc(u.title||'-')+'</td><td>'+acc+'</td>'+
       '<td><div class="row">'+
       '<button class="g" onclick="give('+u.id+',10000)">+۱۰هزار</button>'+
       '<button class="g" onclick="give('+u.id+',100000)">+۱۰۰هزار</button>'+
@@ -87,19 +122,68 @@ function render(){
       '<button class="p" onclick="bazras('+u.id+','+(u.bazras?'false':'true')+')">'+(u.bazras?'گرفتن بازرسی':'دادن بازرسی')+'</button>'+
       '<button class="p" onclick="adm('+u.id+','+(u.free_admin?'false':'true')+')">'+(u.free_admin?'گرفتن ادمین':'دادن ادمین')+'</button>'+
       (u.ban_time>0?'<button onclick="unban('+u.id+')">رفع بن</button>':'<button class="b" onclick="ban('+u.id+')">بن ۱ساعت</button>')+
+      '<button onclick="userHist(\''+esc(u.username)+'\')">سابقه</button>'+
       '</div></td></tr>';
   });
   document.getElementById('rows').innerHTML=h||'<tr><td colspan="8">کاربری نیست</td></tr>';
 }
-async function give(id,a){await api('/admin/give_coin/',{id:id,amount:a});toast('سکه اضافه شد');load();}
-async function setCoin(id){var v=prompt('سکه جدید؟');if(v===null)return;await api('/admin/set_coin/',{id:id,amount:parseInt(v||'0')});toast('تنظیم شد');load();}
-async function title(id){var t=prompt('عنوان جدید؟ (خالی = پاک)');if(t===null)return;await api('/admin/set_title/',{id:id,title:t});toast('عنوان ثبت شد');load();}
-async function bazras(id,v){await api('/admin/grant_bazras/',{id:id,value:v});toast(v?'پنل بازرسی داده شد':'بازرسی گرفته شد');load();}
-async function adm(id,v){await api('/admin/grant_bazras/',{id:id,value:v,admin:v});toast('انجام شد');load();}
-async function ban(id){await api('/admin/ban/',{id:id,hours:1});toast('بن شد');load();}
-async function unban(id){await api('/admin/unban/',{id:id});toast('رفع بن شد');load();}
-async function giveAll(){var v=prompt('به همه چند سکه؟','10000');if(v===null)return;var n=parseInt(v||'0');for(var i=0;i<USERS.length;i++){await api('/admin/give_coin/',{id:USERS[i].id,amount:n});}toast('به همه داده شد');load();}
-function start(){document.getElementById('gate').style.display='none';document.getElementById('app').style.display='block';load();}
+
+function setView(head, rows, empty){
+  document.getElementById('vhead').innerHTML='<tr>'+head.map(function(x){return '<th>'+esc(x)+'</th>';}).join('')+'</tr>';
+  document.getElementById('vbody').innerHTML=rows.length?rows.join(''):'<tr><td colspan="'+head.length+'">'+esc(empty)+'</td></tr>';
+}
+function cell(v,cls){return '<td'+(cls?' class="'+cls+'"':'')+'>'+esc(v)+'</td>';}
+var KIND_FA={grant_bazras:'دادن بازرسی',revoke_bazras:'گرفتن بازرسی',grant_admin:'دادن ادمین',revoke_admin:'گرفتن ادمین',ban:'بن',unban:'رفع بن',give_coin:'افزودن سکه',set_coin:'تعیین سکه',set_title:'تغییر عنوان'};
+
+async function renderTab(){
+  var f=filterVal();
+  if(TAB==='users'){render();return;}
+  if(TAB==='perms'){
+    var holders=USERS.filter(function(u){return u.bazras||u.free_admin;});
+    var hrows=holders.map(function(u){return '<tr>'+cell(u.username)+cell(u.handle)+cell(u.bazras?'بله':'خیر')+cell(u.free_admin?'بله':'خیر')+'</tr>';});
+    var j=await api('/admin/logs/',{kinds:['grant_bazras','revoke_bazras','grant_admin','revoke_admin'],user:f,limit:300});
+    var lrows=(j.logs||[]).map(function(e){return '<tr>'+cell(e.time)+cell(e.actor)+cell(e.target)+cell(KIND_FA[e.kind]||e.kind)+'</tr>';});
+    document.getElementById('vhead').innerHTML='<tr><th colspan="4">دارندگان فعلی مجوز</th></tr><tr><th>نام کاربری</th><th>نام نمایشی</th><th>بازرسی</th><th>ادمین</th></tr>';
+    document.getElementById('vbody').innerHTML=(hrows.join('')||'<tr><td colspan="4">کسی مجوز ندارد</td></tr>')+
+      '<tr><th colspan="4">تاریخچه اعطا و لغو مجوز</th></tr><tr><th>زمان (UTC)</th><th>توسط</th><th>کاربر</th><th>عمل</th></tr>'+
+      (lrows.join('')||'<tr><td colspan="4">چیزی ثبت نشده</td></tr>');
+    return;
+  }
+  if(TAB==='bans'){
+    var b=await api('/admin/logs/',{kinds:['ban','unban'],user:f,limit:300});
+    var brows=(b.logs||[]).map(function(e){return '<tr>'+cell(e.time)+cell(e.actor)+cell(e.target)+cell(KIND_FA[e.kind]||e.kind)+cell(e.detail)+'</tr>';});
+    setView(['زمان (UTC)','توسط','کاربر','عمل','جزئیات'],brows,'سابقه‌ای نیست');
+    return;
+  }
+  if(TAB==='chat'){
+    var c=await api('/admin/chat/',{room:'PublicChat',user:f});
+    var crows=(c.messages||[]).map(function(m){return '<tr>'+cell(m.create_time)+cell(m.handle)+cell(m.sender_id)+'<td class="msg">'+esc(m.content)+'</td></tr>';});
+    setView(['زمان (UTC)','نام نمایشی','کاربری','پیام'],crows,'پیامی نیست (فقط ۲۰۰ پیام آخر هر اتاق نگه داشته می‌شود)');
+    return;
+  }
+  if(TAB==='police'){
+    var p=await api('/admin/police/');
+    var fl=f.toLowerCase();
+    var prows=(p.calls||[]).filter(function(x){return !fl||String(x.caller_id||'').toLowerCase().includes(fl)||String(x.guilty||'').toLowerCase().includes(fl);})
+      .map(function(x){return '<tr>'+cell(x.created_at)+cell(x.caller_handle||x.caller_id)+cell(x.guilty_handle||x.guilty||'-')+cell(x.crime)+cell(x.location)+'<td><span class="tag '+(x.active?'on':'')+'">'+(x.active?'فعال':'بسته')+'</span></td></tr>';});
+    setView(['زمان (UTC)','تماس‌گیرنده','متهم','جرم','مکان','وضعیت'],prows,'تماسی ثبت نشده');
+    return;
+  }
+}
+
+function userHist(username){
+  document.getElementById('filterBox').value=username;
+  tab('bans');
+}
+async function give(id,a){await api('/admin/give_coin/',{id:id,amount:a});toast('سکه اضافه شد');refresh();}
+async function setCoin(id){var v=prompt('سکه جدید؟');if(v===null)return;await api('/admin/set_coin/',{id:id,amount:parseInt(v||'0')});toast('تنظیم شد');refresh();}
+async function title(id){var t=prompt('عنوان جدید؟ (خالی = پاک)');if(t===null)return;await api('/admin/set_title/',{id:id,title:t});toast('عنوان ثبت شد');refresh();}
+async function bazras(id,v){await api('/admin/grant_bazras/',{id:id,value:v});toast(v?'پنل بازرسی داده شد':'بازرسی گرفته شد');refresh();}
+async function adm(id,v){await api('/admin/grant_bazras/',{id:id,admin:v});toast(v?'ادمین داده شد':'ادمین گرفته شد');refresh();}
+async function ban(id){await api('/admin/ban/',{id:id,hours:1});toast('بن شد');refresh();}
+async function unban(id){await api('/admin/unban/',{id:id});toast('رفع بن شد');refresh();}
+async function giveAll(){var v=prompt('به همه چند سکه؟','10000');if(v===null)return;var n=parseInt(v||'0');for(var i=0;i<USERS.length;i++){await api('/admin/give_coin/',{id:USERS[i].id,amount:n});}toast('به همه داده شد');refresh();}
+function start(){document.getElementById('gate').style.display='none';document.getElementById('app').style.display='block';refresh();}
 (function(){var k=localStorage.getItem('animal_admin_key');if(k){KEY=k;start();}})();
 </script>
 </body>
