@@ -86,6 +86,7 @@ td .actions{flex-wrap:nowrap}
       <h1>مدیریت Animal</h1>
       <span class="stat" id="stat"></span>
       <button class="ghost" onclick="refresh()">به‌روزرسانی</button>
+      <button class="g" onclick="exportAll()">خروجی کل اطلاعات</button>
       <button class="ghost" onclick="logout()">خروج</button>
     </div>
     <div class="tabs" id="tabs">
@@ -136,6 +137,17 @@ function saveKey(){
 }
 function logout(){ localStorage.removeItem('animal_admin_key'); location.reload(); }
 
+async function exportAll(){
+  var j = await api('/admin/snapshot/', {});
+  if (!j || !j.state_json) { toast('خروجی گرفته نشد'); return; }
+  var d = new Date(), pad = function(n){ return String(n).padStart(2, '0'); };
+  var name = 'animal-backup-' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()) + '.json';
+  var url = URL.createObjectURL(new Blob([j.state_json], {type:'application/json'}));
+  var a = document.createElement('a'); a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  toast('خروجی ذخیره شد');
+}
 async function api(path, body){
   body = body || {}; body.key = KEY;
   var r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
