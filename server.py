@@ -1561,7 +1561,8 @@ def route(path, body, a):
         content = body.get('content')
         if not isinstance(content, str):
             content = json.dumps(content or {})
-        mid = state['chat']['next']
+        room_msgs_for_id = state['chat']['rooms'].get(room, [])
+        mid = max(int(state['chat'].get('next', 1)), max([int(m.get('id', 0)) for m in room_msgs_for_id] or [0]) + 1)
         state['chat']['next'] = mid + 1
         msg = {
             'id': mid,
@@ -1580,8 +1581,16 @@ def route(path, body, a):
     if path == '/chat/fetch/':
         _ensure_chat()
         room = str(body.get('room') or 'PublicChat')[:64]
-        since = int(body.get('since') or 0)
+        try:
+            since = int(float(body.get('since') or 0))
+        except (TypeError, ValueError):
+            since = 0
         room_msgs = state['chat']['rooms'].get(room, [])
+        newest = max([int(m.get('id', 0)) for m in room_msgs] or [0])
+        # A client cursor past the newest stored id (e.g. after the state was reset)
+        # would hide every new message, so start over from the latest messages.
+        if since > max(newest, int(state['chat'].get('next', 1)) - 1):
+            since = 0
         out = [m for m in room_msgs if int(m.get('id', 0)) > since]
         return 200, {'messages': out[-100:]}
     if path == '/chat/history/':
