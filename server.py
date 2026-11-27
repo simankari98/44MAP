@@ -337,6 +337,8 @@ def member_json(a):
 def rank_rows(sort_key):
     rows = []
     for a in state['accounts'].values():
+        if a.get('hide_leaderboard'):
+            continue
         last_char = (a.get('characters') or [CHARS[0]])[-1]
         rows.append({'id': a['username'], 'handle': a['handle'], 'name': a['handle'], 'cup': a['cup'], 'coin': a['coin'], 'crown': a['crown'], 'win_count': a['win_count'], 'num_chars': len(a.get('characters', [])), 'value': a.get(sort_key, 0), 'count': a.get(sort_key, 0), 'title': a.get('title', ''), 'rank': 0, 'character': last_char.get('path', CHARS[0]['path']), 'path': last_char.get('path', CHARS[0]['path']), 'card_path': last_char.get('card_path', CHARS[0]['card_path'])})
     rows.sort(key=lambda r: r.get(sort_key, 0), reverse=True)
@@ -596,6 +598,7 @@ def admin_users():
             'free_admin': bool(acct.get('free_admin')),
             'ban_time': acct.get('ban_time', 0),
             'police_license': bool(acct.get('police_license')),
+            'hide_leaderboard': bool(acct.get('hide_leaderboard')),
             'online': False,
         })
     out.sort(key=lambda r: r['coin'], reverse=True)
@@ -725,6 +728,12 @@ def route_admin(path, body):
     elif path == '/admin/set_coin/':
         target['coin'] = amount
         _log_event('set_coin', ADMIN_ACTOR, target['username'], amount)
+    elif path == '/admin/set_cup/':
+        target['cup'] = max(0, amount)
+        _log_event('set_cup', ADMIN_ACTOR, target['username'], target['cup'])
+    elif path == '/admin/leaderboard_hide/':
+        target['hide_leaderboard'] = bool(body.get('hidden'))
+        _log_event('leaderboard_hide' if target['hide_leaderboard'] else 'leaderboard_show', ADMIN_ACTOR, target['username'])
     elif path == '/admin/grant_police/':
         target['police_license'] = bool(body.get('value'))
         _log_event('grant_police' if target['police_license'] else 'revoke_police', ADMIN_ACTOR, target['username'])
@@ -1542,6 +1551,8 @@ def route(path, body, a):
     if path == '/game/char_leaderboard/':
         rows = []
         for acct in state['accounts'].values():
+            if acct.get('hide_leaderboard'):
+                continue
             rows.append({'id': acct['username'], 'handle': acct['handle'], 'name': acct['handle'],
                          'num_chars': len(acct.get('characters', [])), 'cup': acct.get('cup', 0),
                          'coin': acct.get('coin', 0), 'crown': acct.get('crown', 0), 'title': acct.get('title', ''),

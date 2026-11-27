@@ -192,6 +192,8 @@ function userActions(u){
       '<button class="g" onclick="give(' + u.id + ',100000)">+۱۰۰هزار</button>' +
       '<button onclick="setCoin(' + u.id + ')">تعیین سکه</button>' +
       '<button onclick="title(' + u.id + ')">عنوان</button>' +
+      '<button onclick="setCup(' + u.id + ')">تعیین جام</button>' +
+      '<button onclick="lbHide(' + u.id + ',' + (u.hide_leaderboard ? 'false' : 'true') + ')">' + (u.hide_leaderboard ? 'برگرداندن به لیدربورد' : 'حذف از لیدربورد') + '</button>' +
       '<button class="p" onclick="bazras(' + u.id + ',' + (u.bazras ? 'false' : 'true') + ')">' + (u.bazras ? 'گرفتن بازرسی' : 'دادن بازرسی') + '</button>' +
       '<button class="p" onclick="adm(' + u.id + ',' + (u.free_admin ? 'false' : 'true') + ')">' + (u.free_admin ? 'گرفتن ادمین' : 'دادن ادمین') + '</button>' +
       '<button onclick="police(' + u.id + ',' + (u.police_license ? 'false' : 'true') + ')">' + (u.police_license ? 'گرفتن مجوز پلیس' : 'دادن مجوز پلیس') + '</button>' +
@@ -204,6 +206,7 @@ function userCard(u){
   var tags = (u.bazras ? '<span class="tag on">بازرسی</span> ' : '') +
              (u.free_admin ? '<span class="tag on">ادمین</span> ' : '') +
              (u.police_license ? '<span class="tag warn">مجوز پلیس</span> ' : '') +
+             (u.hide_leaderboard ? '<span class="tag warn">خارج از لیدربورد</span> ' : '') +
              (u.ban_time > 0 ? '<span class="tag bad">بن</span>' : '');
   return '<div class="card">' +
     '<div class="card-head"><div class="card-title">' + esc(u.handle) + ' <small>(' + esc(u.username) + ')</small></div>' + tags + '</div>' +
@@ -345,6 +348,8 @@ async function title(id){
   await api('/admin/set_title/', {id:id, title:t, title_color:c || 'FFFFFF'});
   toast('عنوان ثبت شد'); refresh();
 }
+async function setCup(id){ var v = prompt('جام جدید؟'); if (v === null) return; await api('/admin/set_cup/', {id:id, amount:parseInt(v || '0', 10)}); toast('جام تنظیم شد'); refresh(); }
+async function lbHide(id,v){ await api('/admin/leaderboard_hide/', {id:id, hidden:v}); toast(v ? 'از لیدربورد حذف شد' : 'به لیدربورد برگشت'); refresh(); }
 async function bazras(id,v){ await api('/admin/grant_bazras/', {id:id, value:v}); toast(v ? 'پنل بازرسی داده شد' : 'بازرسی گرفته شد'); refresh(); }
 async function adm(id,v){ await api('/admin/grant_bazras/', {id:id, admin:v}); toast(v ? 'ادمین داده شد' : 'ادمین گرفته شد'); refresh(); }
 async function police(id,v){ await api('/admin/grant_police/', {id:id, value:v}); toast(v ? 'مجوز پلیس داده شد' : 'مجوز پلیس گرفته شد'); refresh(); }
