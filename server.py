@@ -615,6 +615,32 @@ def _log_event(kind, actor, target, detail=''):
         del logs[0:len(logs) - 5000]
 
 
+# ---- anti-abuse: limit how many accounts one network address can create ----
+REGISTER_PER_IP_PER_DAY = max(1, int(os.environ.get('REGISTER_PER_IP_PER_DAY', '3')))
+_register_hits = {}
+
+
+def _client_ip(handler):
+    # Behind Railway's proxy the real client is the first X-Forwarded-For entry.
+    fwd = (handler.headers.get('X-Forwarded-For') or '').split(',')[0].strip()
+    return fwd or handler.client_address[0]
+
+
+def _register_allowed(ip):
+    now = time.time()
+    window = 24 * 3600
+    hits = [t for t in _register_hits.get(ip, []) if now - t < window]
+    if len(hits) >= REGISTER_PER_IP_PER_DAY:
+        _register_hits[ip] = hits
+        return False
+    hits.append(now)
+    _register_hits[ip] = hits
+    if len(_register_hits) > 10000:
+        for k in [k for k, v in _register_hits.items() if not v or now - v[-1] >= window]:
+            _register_hits.pop(k, None)
+    return True
+
+
 def route_admin(path, body):
     if not _admin_ok(body):
         return 403, {'error': 'bad admin key'}
@@ -1865,6 +1891,13 @@ class Handler(BaseHTTPRequestHandler):
                     code, obj = 500, {'error': 'internal'}
             self._send(code, obj)
             return
+        if path == '/account/register/':
+            ip = _client_ip(self)
+            with _lock:
+                allowed = _register_allowed(ip)
+            if not allowed:
+                self._send(429, {'error': 'too many accounts created from this network today'})
+                return
         with _lock:
             a = account_for(token)
             try:
