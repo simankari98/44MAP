@@ -191,7 +191,7 @@ function userActions(u){
       '<button class="g" onclick="give(' + u.id + ',10000)">+۱۰هزار</button>' +
       '<button class="g" onclick="give(' + u.id + ',100000)">+۱۰۰هزار</button>' +
       '<button onclick="setCoin(' + u.id + ')">تعیین سکه</button>' +
-      '<button onclick="title(' + u.id + ')">عنوان و رنگ</button>' +
+      '<button onclick="editTitle(' + u.id + ')">عنوان و رنگ</button>' +
       '<button onclick="setCup(' + u.id + ')">تعیین جام</button>' +
       '<button onclick="lbHide(' + u.id + ',' + (u.hide_leaderboard ? 'false' : 'true') + ')">' + (u.hide_leaderboard ? 'برگرداندن به لیدربورد' : 'حذف از لیدربورد') + '</button>' +
       '<button class="p" onclick="bazras(' + u.id + ',' + (u.bazras ? 'false' : 'true') + ')">' + (u.bazras ? 'گرفتن بازرسی' : 'دادن بازرسی') + '</button>' +
@@ -340,7 +340,7 @@ function userHist(username){
 
 async function give(id,a){ await api('/admin/give_coin/', {id:id, amount:a}); toast('سکه اضافه شد'); refresh(); }
 async function setCoin(id){ var v = prompt('سکه جدید؟'); if (v === null) return; await api('/admin/set_coin/', {id:id, amount:parseInt(v || '0', 10)}); toast('تنظیم شد'); refresh(); }
-async function title(id){
+async function editTitle(id){
   var cur = (USERS || []).find(function(x){ return x.id == id; }) || {};
   var t = prompt('عنوان جدید؟ (خالی = پاک)', cur.title || ''); if (t === null) return;
   var c = prompt('رنگ عنوان؟ کد هگزادسیمال بدون # (مثلاً FFD700). خالی = سفید', cur.title_color || 'FFFFFF'); if (c === null) return;
