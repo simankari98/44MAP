@@ -713,6 +713,27 @@ def route_admin(path, body):
                     restored += 1
         save_state()
         return 200, {'restored': restored, 'candidates': len(names)}
+    if path == '/admin/export/':
+        # Admin export: whole state as JSON text (the panel saves it as a file).
+        with _lock:
+            text = json.dumps(state, ensure_ascii=False)
+        return 200, {'state_json': text}
+    if path == '/admin/import/':
+        # Admin import: replace the whole state with an exported JSON file.
+        raw = body.get('state_json')
+        if not isinstance(raw, str) or not raw.strip():
+            return 400, {'error': 'state_json required'}
+        try:
+            new_state = json.loads(raw)
+        except ValueError:
+            return 400, {'error': 'invalid json'}
+        if not isinstance(new_state, dict):
+            return 400, {'error': 'state must be an object'}
+        with _lock:
+            state.clear()
+            state.update(new_state)
+        save_state()
+        return 200, {'ok': True, 'keys': len(new_state)}
     if path == '/admin/snapshot/':
         # Full state for the standby mirror. Serialized once, as text, so no
         # second in-memory copy of the whole state is made.
