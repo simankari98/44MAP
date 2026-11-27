@@ -714,10 +714,11 @@ def route_admin(path, body):
         save_state()
         return 200, {'restored': restored, 'candidates': len(names)}
     if path == '/admin/snapshot/':
-        # Full state for the standby mirror (read-only use).
+        # Full state for the standby mirror. Serialized once, as text, so no
+        # second in-memory copy of the whole state is made.
         with _lock:
-            payload = json.loads(json.dumps(state))
-        return 200, {'state': payload}
+            text = json.dumps(state)
+        return 200, {'state_json': text}
     if path == '/admin/logs/':
         kinds = body.get('kinds') or []
         if isinstance(kinds, str):
@@ -2189,11 +2190,14 @@ def _mirror_once(source, key):
         connection.request('POST', '/admin/snapshot/', body=body, headers={'Content-Type': 'application/json'})
         response = connection.getresponse()
         data = json.loads(response.read())
-        if response.status != 200 or not isinstance(data.get('state'), dict):
+        if response.status != 200 or not isinstance(data.get('state_json'), str):
             raise ValueError('snapshot failed: ' + str(response.status))
-        snapshot = data['state']
+        snapshot = json.loads(data['state_json'])
+        del data
     finally:
         connection.close()
+    if not isinstance(snapshot, dict):
+        raise ValueError('snapshot is not an object')
     with _lock:
         state.clear()
         state.update(snapshot)
@@ -2208,7 +2212,7 @@ def _start_mirror(source, key):
                 log('Mirror synced from ' + source)
             except Exception as exc:
                 log('Mirror sync failed: ' + str(exc))
-            time.sleep(60)
+            time.sleep(600)
     threading.Thread(target=loop, daemon=True).start()
 
 
