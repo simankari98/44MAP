@@ -337,7 +337,14 @@ function userHist(username){
 
 async function give(id,a){ await api('/admin/give_coin/', {id:id, amount:a}); toast('سکه اضافه شد'); refresh(); }
 async function setCoin(id){ var v = prompt('سکه جدید؟'); if (v === null) return; await api('/admin/set_coin/', {id:id, amount:parseInt(v || '0', 10)}); toast('تنظیم شد'); refresh(); }
-async function title(id){ var t = prompt('عنوان جدید؟ (خالی = پاک)'); if (t === null) return; await api('/admin/set_title/', {id:id, title:t}); toast('عنوان ثبت شد'); refresh(); }
+async function title(id){
+  var t = prompt('عنوان جدید؟ (خالی = پاک)'); if (t === null) return;
+  var c = prompt('رنگ عنوان؟ کد هگزادسیمال بدون # (مثلاً FFD700). خالی = سفید', 'FFFFFF'); if (c === null) return;
+  c = c.trim().replace(/^#/, '');
+  if (c && !/^[0-9a-fA-F]{6}$/.test(c)) { toast('کد رنگ نامعتبر است'); return; }
+  await api('/admin/set_title/', {id:id, title:t, title_color:c || 'FFFFFF'});
+  toast('عنوان ثبت شد'); refresh();
+}
 async function bazras(id,v){ await api('/admin/grant_bazras/', {id:id, value:v}); toast(v ? 'پنل بازرسی داده شد' : 'بازرسی گرفته شد'); refresh(); }
 async function adm(id,v){ await api('/admin/grant_bazras/', {id:id, admin:v}); toast(v ? 'ادمین داده شد' : 'ادمین گرفته شد'); refresh(); }
 async function police(id,v){ await api('/admin/grant_police/', {id:id, value:v}); toast(v ? 'مجوز پلیس داده شد' : 'مجوز پلیس گرفته شد'); refresh(); }
