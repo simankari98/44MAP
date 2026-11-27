@@ -283,7 +283,7 @@ def get_char(cid):
             return c
     return None
 
-_MEMBER_KEYS = ['cup','coin','crown','email','daily_claim_time','hunger','warmth','title','title_color','is_test','name_changed_count','show_debug','ban_time','free_admin','bazras','stealth','chat_admin','jail_time','in_prison','progress_level','is_meta_progress_finished','win_count','game_count']
+_MEMBER_KEYS = ['cup','coin','crown','email','daily_claim_time','hunger','warmth','title','title_color','is_test','name_changed_count','show_debug','ban_time','free_admin','bazras','police_license','police_score','stealth','chat_admin','jail_time','in_prison','progress_level','is_meta_progress_finished','win_count','game_count']
 
 
 PHONES = [
