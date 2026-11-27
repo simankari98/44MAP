@@ -1827,6 +1827,10 @@ def route(path, body, a):
                 save_state()
             return 200, {'ok': True}
         return 200, {}
+    if path in ('/game/free_admin_ban/', '/game/free_admin_unban/', '/game/free_admin_set_title/'):
+        # Only accounts with the free-admin flag may use these tools.
+        if not (a and a.get('free_admin')):
+            return 403, {'error': 'free admin only'}
     if path == '/game/free_admin_ban/':
         t = _find_account(body.get('backend_id'))
         if t is not None:
