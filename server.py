@@ -274,20 +274,18 @@ def _ensure_chat():
 # Two profanity messages get the account banned for CHAT_PROFANITY_BAN_HOURS.
 # Spam (more than CHAT_SPAM_BURST messages in CHAT_SPAM_WINDOW seconds, or the same text
 # repeated within CHAT_REPEAT_WINDOW seconds) is rejected; CHAT_SPAM_STRIKES strikes ban for 1 hour.
-CHAT_PROFANITY_STRIKES = 2
-CHAT_PROFANITY_BAN_HOURS = 24
-CHAT_SPAM_BURST = 5
+CHAT_SPAM_BURST = 8
 CHAT_SPAM_WINDOW = 10
+CHAT_REPEAT_LIMIT = 3
 CHAT_REPEAT_WINDOW = 30
-CHAT_SPAM_STRIKES = 3
+# Only long, unambiguous words: short Persian/English substrings matched normal words.
 _CHAT_BAD_WORDS = [
-    'کیر', 'کص', 'کون', 'جنده', 'قحبه', 'کسکش', 'کسخل', 'کصافط', 'عوضی', 'حرومزاده',
-    'مادرجنده', 'بیناموس', 'کسننت', 'گایید', 'گاییدم', 'ننه کیر', 'اشغال', 'بی ناموس',
-    'fuck', 'shit', 'bitch', 'asshole', 'motherfucker', 'dick', 'nigger', 'faggot',
+    'جنده', 'قحبه', 'کسکش', 'کسخل', 'کصافط', 'حرومزاده', 'مادرجنده', 'بیناموس',
+    'گاییدم', 'گایید', 'کسننت', 'fuck', 'shit', 'bitch', 'asshole', 'motherfucker', 'nigger', 'faggot',
 ]
 _CHAT_BAD_NORMALIZED = []
 _chat_recent = {}
-_chat_last = {}
+_chat_repeats = {}
 
 
 def _normalize_chat(text):
@@ -701,6 +699,25 @@ def route_admin(path, body):
         return 403, {'error': 'bad admin key'}
     if path == '/admin/users/':
         return 200, {'users': admin_users()}
+    if path == '/admin/restore_chat_bans/':
+        # Lifts bans that the old automatic chat moderation created (logged as kind 'chat_ban').
+        names = {str(e.get('target')) for e in state.get('admin_log', []) if e.get('kind') == 'chat_ban'}
+        restored = 0
+        with _lock:
+            for acct in state.get('accounts', {}).values():
+                if acct.get('username') in names and int(acct.get('ban_time', 0) or 0) > 0:
+                    acct['ban_time'] = 0
+                    acct['chat_strikes'] = 0
+                    acct['chat_spam'] = 0
+                    _log_event('unban', 'system', acct['username'], 'بازگردانی بن چت')
+                    restored += 1
+        save_state()
+        return 200, {'restored': restored, 'candidates': len(names)}
+    if path == '/admin/snapshot/':
+        # Full state for the standby mirror (read-only use).
+        with _lock:
+            payload = json.loads(json.dumps(state))
+        return 200, {'state': payload}
     if path == '/admin/logs/':
         kinds = body.get('kinds') or []
         if isinstance(kinds, str):
@@ -1660,28 +1677,17 @@ def route(path, body, a):
             username = a['username']
             now = time.time()
             if _is_profane(content):
-                a['chat_strikes'] = int(a.get('chat_strikes', 0)) + 1
-                if a['chat_strikes'] >= CHAT_PROFANITY_STRIKES:
-                    a['ban_time'] = CHAT_PROFANITY_BAN_HOURS * 3600
-                    a['chat_strikes'] = 0
-                    _log_event('chat_ban', 'auto', username, 'profanity')
-                save_state()
-                return 403, {'error': 'profanity', 'strikes': a.get('chat_strikes', 0)}
+                return 403, {'error': 'profanity'}
             recent = [t for t in _chat_recent.get(username, []) if now - t < CHAT_SPAM_WINDOW]
-            last = _chat_last.get(username)
-            repeated = bool(last and last[0] == content and now - last[1] < CHAT_REPEAT_WINDOW)
-            if len(recent) >= CHAT_SPAM_BURST or repeated:
+            repeats = _chat_repeats.get(username, (None, 0, 0.0))
+            same = repeats[0] == content and now - repeats[2] < CHAT_REPEAT_WINDOW
+            count = repeats[1] + 1 if same else 1
+            if len(recent) >= CHAT_SPAM_BURST or count > CHAT_REPEAT_LIMIT:
                 _chat_recent[username] = recent
-                a['chat_spam'] = int(a.get('chat_spam', 0)) + 1
-                if a['chat_spam'] >= CHAT_SPAM_STRIKES:
-                    a['ban_time'] = 3600
-                    a['chat_spam'] = 0
-                    _log_event('chat_ban', 'auto', username, 'spam')
-                save_state()
-                return 429, {'error': 'spam', 'strikes': a.get('chat_spam', 0)}
+                return 429, {'error': 'spam'}
             recent.append(now)
             _chat_recent[username] = recent
-            _chat_last[username] = (content, now)
+            _chat_repeats[username] = (content, count, now)
         room_msgs_for_id = state['chat']['rooms'].get(room, [])
         mid = max(int(state['chat'].get('next', 1)), max([int(m.get('id', 0)) for m in room_msgs_for_id] or [0]) + 1)
         state['chat']['next'] = mid + 1
@@ -2174,6 +2180,38 @@ class UnifiedHandler(Handler):
                 return
 
 
+def _mirror_once(source, key):
+    parsed = urlsplit(source)
+    connection_type = http.client.HTTPSConnection if parsed.scheme == 'https' else http.client.HTTPConnection
+    connection = connection_type(parsed.hostname, parsed.port or (443 if parsed.scheme == 'https' else 80), timeout=60)
+    try:
+        body = json.dumps({'key': key}).encode('utf-8')
+        connection.request('POST', '/admin/snapshot/', body=body, headers={'Content-Type': 'application/json'})
+        response = connection.getresponse()
+        data = json.loads(response.read())
+        if response.status != 200 or not isinstance(data.get('state'), dict):
+            raise ValueError('snapshot failed: ' + str(response.status))
+        snapshot = data['state']
+    finally:
+        connection.close()
+    with _lock:
+        state.clear()
+        state.update(snapshot)
+    save_state()
+
+
+def _start_mirror(source, key):
+    def loop():
+        while True:
+            try:
+                _mirror_once(source, key)
+                log('Mirror synced from ' + source)
+            except Exception as exc:
+                log('Mirror sync failed: ' + str(exc))
+            time.sleep(60)
+    threading.Thread(target=loop, daemon=True).start()
+
+
 def unified_main():
     global GAME_SERVER_TOKEN
     if _requested_modes != ('none',) and (not _requested_modes or any(
@@ -2226,6 +2264,9 @@ def unified_main():
         threading.Thread(target=httpd.shutdown, daemon=True).start()
 
     threading.Thread(target=_state_saver_loop, daemon=True).start()
+    mirror_source = os.environ.get('MIRROR_FROM', '').strip()
+    if mirror_source:
+        _start_mirror(mirror_source, os.environ.get('ADMIN_KEY', ''))
 
     def monitor_game(mode, args):
         while not stopped.is_set():
