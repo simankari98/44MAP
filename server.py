@@ -2183,7 +2183,7 @@ class UnifiedHandler(Handler):
 def _mirror_once(source, key):
     parsed = urlsplit(source)
     connection_type = http.client.HTTPSConnection if parsed.scheme == 'https' else http.client.HTTPConnection
-    connection = connection_type(parsed.hostname, parsed.port or (443 if parsed.scheme == 'https' else 80), timeout=60)
+    connection = connection_type(parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80), timeout=600)
     try:
         body = json.dumps({'key': key}).encode('utf-8')
         connection.request('POST', '/admin/snapshot/', body=body, headers={'Content-Type': 'application/json'})
