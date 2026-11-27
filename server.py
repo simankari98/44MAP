@@ -221,7 +221,7 @@ def flush_state():
     tmp_file = STATE_FILE + '.tmp'
     try:
         with _lock:
-            payload = json.dumps(state)
+            payload = json.dumps(state, separators=(',', ':'))
         os.makedirs(DATA_DIR, exist_ok=True)
         with open(tmp_file, 'w', encoding='utf-8') as fp:
             fp.write(payload)
@@ -241,7 +241,7 @@ def save_state():
 def _state_saver_loop():
     while True:
         _state_dirty.wait()
-        time.sleep(2)
+        time.sleep(5)
         _state_dirty.clear()
         flush_state()
 
