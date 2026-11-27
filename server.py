@@ -594,6 +594,7 @@ def admin_users():
             'coin': acct.get('coin', 0),
             'cup': acct.get('cup', 0),
             'title': acct.get('title', ''),
+            'title_color': acct.get('title_color', ''),
             'bazras': bool(acct.get('bazras')),
             'free_admin': bool(acct.get('free_admin')),
             'ban_time': acct.get('ban_time', 0),
