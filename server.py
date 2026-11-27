@@ -212,17 +212,37 @@ def _backfill_ids():
     state['numCounter'] = max(n, len(ids))
 
 
+_state_dirty = threading.Event()
+
+
+def flush_state():
+    """Write the whole state to disk now. Serialises under the lock, writes outside it."""
+    tmp_file = STATE_FILE + '.tmp'
+    try:
+        with _lock:
+            payload = json.dumps(state)
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(tmp_file, 'w', encoding='utf-8') as fp:
+            fp.write(payload)
+            fp.flush()
+            os.fsync(fp.fileno())
+        os.replace(tmp_file, STATE_FILE)
+    except Exception:
+        pass
+
+
 def save_state():
-	tmp_file = STATE_FILE + '.tmp'
-	try:
-		os.makedirs(DATA_DIR, exist_ok=True)
-		with open(tmp_file, 'w', encoding='utf-8') as fp:
-			json.dump(state, fp)
-			fp.flush()
-			os.fsync(fp.fileno())
-		os.replace(tmp_file, STATE_FILE)
-	except Exception:
-		pass
+    # Cheap: just mark the state dirty. A background thread writes it at most every 2 seconds,
+    # instead of rewriting the whole file (with fsync) after every request.
+    _state_dirty.set()
+
+
+def _state_saver_loop():
+    while True:
+        _state_dirty.wait()
+        time.sleep(2)
+        _state_dirty.clear()
+        flush_state()
 
 
 def load_state():
@@ -1436,6 +1456,9 @@ def route(path, body, a):
         target['coin'] = int(target.get('coin', 0)) + amount
         a.setdefault('transactions', []).append({'type': 'out', 'amount': amount, 'to': target.get('handle')})
         target.setdefault('transactions', []).append({'type': 'in', 'amount': amount, 'from': a.get('handle')})
+        for acct_tx in (a, target):
+            if len(acct_tx['transactions']) > 200:
+                del acct_tx['transactions'][0:len(acct_tx['transactions']) - 200]
         save_state()
         return 200, {'coin': a['coin']}
     if path == '/game/fetch_member_by_username/':
@@ -1727,6 +1750,8 @@ def route(path, body, a):
                 call['guilty'] = target['username']
                 call['guilty_handle'] = target.get('handle', '')
         calls.append(call)
+        if len(calls) > 500:
+            del calls[0:len(calls) - 500]
         save_state()
         return 200, {'call': call, 'id': call['id'], 'calls': calls[-50:]}
     if path == '/police/police_call_list/':
@@ -2133,7 +2158,10 @@ def unified_main():
 
     def shutdown(_signum=None, _frame=None):
         stopped.set()
+        flush_state()
         threading.Thread(target=httpd.shutdown, daemon=True).start()
+
+    threading.Thread(target=_state_saver_loop, daemon=True).start()
 
     def monitor_game(mode, args):
         while not stopped.is_set():
