@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Animal Rush backend - Railway edition (zero dependency, python stdlib only).
-import base64, hashlib, hmac, http.client, json, os, random, threading, time
+import base64, hashlib, hmac, http.client, json, os, random, re, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
@@ -268,6 +268,39 @@ def load_state():
 def _ensure_chat():
     if 'chat' not in state:
         state['chat'] = {'next': 1, 'rooms': {}}
+
+
+# ---- chat moderation ----
+# Two profanity messages get the account banned for CHAT_PROFANITY_BAN_HOURS.
+# Spam (more than CHAT_SPAM_BURST messages in CHAT_SPAM_WINDOW seconds, or the same text
+# repeated within CHAT_REPEAT_WINDOW seconds) is rejected; CHAT_SPAM_STRIKES strikes ban for 1 hour.
+CHAT_PROFANITY_STRIKES = 2
+CHAT_PROFANITY_BAN_HOURS = 24
+CHAT_SPAM_BURST = 5
+CHAT_SPAM_WINDOW = 10
+CHAT_REPEAT_WINDOW = 30
+CHAT_SPAM_STRIKES = 3
+_CHAT_BAD_WORDS = [
+    'کیر', 'کص', 'کون', 'جنده', 'قحبه', 'کسکش', 'کسخل', 'کصافط', 'عوضی', 'حرومزاده',
+    'مادرجنده', 'بیناموس', 'کسننت', 'گایید', 'گاییدم', 'ننه کیر', 'اشغال', 'بی ناموس',
+    'fuck', 'shit', 'bitch', 'asshole', 'motherfucker', 'dick', 'nigger', 'faggot',
+]
+_CHAT_BAD_NORMALIZED = []
+_chat_recent = {}
+_chat_last = {}
+
+
+def _normalize_chat(text):
+    text = str(text).lower()
+    text = text.replace('ي', 'ی').replace('ك', 'ک').replace('‌', '').replace('ـ', '')
+    return re.sub(r'[\W_]+', '', text)
+
+
+def _is_profane(text):
+    if not _CHAT_BAD_NORMALIZED:
+        _CHAT_BAD_NORMALIZED.extend(_normalize_chat(word) for word in _CHAT_BAD_WORDS)
+    normalized = _normalize_chat(text)
+    return any(word and word in normalized for word in _CHAT_BAD_NORMALIZED)
 
 
 def new_account(username):
@@ -1623,6 +1656,32 @@ def route(path, body, a):
         content = body.get('content')
         if not isinstance(content, str):
             content = json.dumps(content or {})
+        if not a.get('free_admin'):
+            username = a['username']
+            now = time.time()
+            if _is_profane(content):
+                a['chat_strikes'] = int(a.get('chat_strikes', 0)) + 1
+                if a['chat_strikes'] >= CHAT_PROFANITY_STRIKES:
+                    a['ban_time'] = CHAT_PROFANITY_BAN_HOURS * 3600
+                    a['chat_strikes'] = 0
+                    _log_event('chat_ban', 'auto', username, 'profanity')
+                save_state()
+                return 403, {'error': 'profanity', 'strikes': a.get('chat_strikes', 0)}
+            recent = [t for t in _chat_recent.get(username, []) if now - t < CHAT_SPAM_WINDOW]
+            last = _chat_last.get(username)
+            repeated = bool(last and last[0] == content and now - last[1] < CHAT_REPEAT_WINDOW)
+            if len(recent) >= CHAT_SPAM_BURST or repeated:
+                _chat_recent[username] = recent
+                a['chat_spam'] = int(a.get('chat_spam', 0)) + 1
+                if a['chat_spam'] >= CHAT_SPAM_STRIKES:
+                    a['ban_time'] = 3600
+                    a['chat_spam'] = 0
+                    _log_event('chat_ban', 'auto', username, 'spam')
+                save_state()
+                return 429, {'error': 'spam', 'strikes': a.get('chat_spam', 0)}
+            recent.append(now)
+            _chat_recent[username] = recent
+            _chat_last[username] = (content, now)
         room_msgs_for_id = state['chat']['rooms'].get(room, [])
         mid = max(int(state['chat'].get('next', 1)), max([int(m.get('id', 0)) for m in room_msgs_for_id] or [0]) + 1)
         state['chat']['next'] = mid + 1
