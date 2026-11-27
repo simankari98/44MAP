@@ -5,6 +5,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
 PORT = int(os.environ.get('PORT', '8899'))
+MAX_PLAYERS = max(2, min(100, int(os.environ.get('MAX_PLAYERS', '70'))))
 HOST = '0.0.0.0'
 DATA_DIR = os.environ.get('DATA_DIR', os.path.dirname(os.path.abspath(__file__)))
 STATE_FILE = os.path.join(DATA_DIR, 'state.json')
@@ -735,7 +736,7 @@ def route_admin(path, body):
         for mode_key in ('freeride', 'race'):
             for s in state.setdefault('servers', {}).setdefault(mode_key, []):
                 rows.append({'id': s.get('id'), 'mode': s.get('mode'), 'name': s.get('name', ''), 'ip': s.get('ip', ''),
-                             'players': s.get('players_joined', 0), 'max': s.get('max_players_start', 32),
+                             'players': s.get('players_joined', 0), 'max': s.get('max_players_start', MAX_PLAYERS),
                              'state': s.get('state', ''), 'hidden': _is_hidden(s), 'allowed': s.get('allowed', []), 'updated_at': s.get('updated_at', 0)})
         return 200, {'servers': rows}
     if path == '/admin/police/':
@@ -1506,7 +1507,7 @@ def route(path, body, a):
                 return 200, {'id': x['id'], 'is_test': False, 'total_stage': x['total_stage']}
         state['serverCounter'] += 1
         sid = state['serverCounter']
-        entry = {'id': sid, 'mode': mode, 'ip': ip, 'port': port, 'players_joined': 0, 'state': 'Lobby', 'map_id': 0, 'bot_count': 0, 'max_players_start': 32, 'total_stage': 3, 'owner_id': a.get('username') if a else None, 'password_hash': '', 'updated_at': now, 'name': _server_name(mode, ip, sid)}
+        entry = {'id': sid, 'mode': mode, 'ip': ip, 'port': port, 'players_joined': 0, 'state': 'Lobby', 'map_id': 0, 'bot_count': 0, 'max_players_start': MAX_PLAYERS, 'total_stage': 3, 'owner_id': a.get('username') if a else None, 'password_hash': '', 'updated_at': now, 'name': _server_name(mode, ip, sid)}
         entry['transport'] = transport
         lst.append(entry)
         save_state()
@@ -1527,7 +1528,7 @@ def route(path, body, a):
         save_state()
         return 200, {'ok': True}
     if path == '/game/start_game/':
-        count = min(32, max(1, int(body.get('player_count') or 1)))
+        count = min(MAX_PLAYERS, max(1, int(body.get('player_count') or 1)))
         game_id = random.SystemRandom().randrange(1, 2_147_483_647)
         container_id = random.SystemRandom().randrange(1, 2_147_483_647)
         games = state.setdefault('games', {})
@@ -1557,7 +1558,7 @@ def route(path, body, a):
         mpath, bots = maps[idx]
         save_state()
         log('select_map game=' + str(gid) + ' stage=' + str(g['stage']) + ' -> ' + mpath)
-        return 200, {'map': {'id': g['stage'], 'path': mpath, 'max_players_count': 32, 'min_players_count': 4, 'bot_count': bots, 'bot_wait_remove': 100, 'bot_reset_time': 30}, 'settings': {'game_time': 90, 'lobby_time': 20, 'countdown_time': 5, 'result_time': 8, 'player_join_add_time': 2}}
+        return 200, {'map': {'id': g['stage'], 'path': mpath, 'max_players_count': MAX_PLAYERS, 'min_players_count': 4, 'bot_count': bots, 'bot_wait_remove': 100, 'bot_reset_time': 30}, 'settings': {'game_time': 90, 'lobby_time': 20, 'countdown_time': 5, 'result_time': 8, 'player_join_add_time': 2}}
     if path == '/game/results_v2/':
         key = str(body.get('container_id') or body.get('game_id') or '')
         game = state.setdefault('games', {}).get('match:' + key)
