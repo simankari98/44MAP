@@ -427,6 +427,18 @@ def _server_owned_by(server, account):
     ))
 
 
+def _is_hidden(server):
+    # HIDDEN_SERVERS="host-part;host-part": matching lobbies are never offered to players.
+    if server.get('hidden'):
+        return True
+    ip = str(server.get('ip', ''))
+    for needle in os.environ.get('HIDDEN_SERVERS', '').split(';'):
+        needle = needle.strip()
+        if needle and needle in ip:
+            return True
+    return False
+
+
 def _server_name(mode, ip, sid):
     # SERVER_NAMES="host-part=Display Name;host-part=Display Name"
     # The first entry whose host-part appears in the registered address wins.
@@ -647,7 +659,7 @@ def route_admin(path, body):
             for s in state.setdefault('servers', {}).setdefault(mode_key, []):
                 rows.append({'id': s.get('id'), 'mode': s.get('mode'), 'name': s.get('name', ''), 'ip': s.get('ip', ''),
                              'players': s.get('players_joined', 0), 'max': s.get('max_players_start', 32),
-                             'state': s.get('state', ''), 'hidden': bool(s.get('hidden')), 'updated_at': s.get('updated_at', 0)})
+                             'state': s.get('state', ''), 'hidden': _is_hidden(s), 'updated_at': s.get('updated_at', 0)})
         return 200, {'servers': rows}
     if path == '/admin/police/':
         calls = list(state.get('police_calls', []))
@@ -1434,7 +1446,7 @@ def route(path, body, a):
         return 200, {'game_id': game_id, 'container_id': container_id, 'qualified_count': max(1, (count + 1) // 2)}
     if path == '/game/find_game_v2/':
         _prune_game_servers(now)
-        alive = [s for s in state.setdefault('servers', {}).setdefault('race', []) if not s.get('hidden') and s.get('state') in ('Lobby', 'Loading') and s['players_joined'] < s['max_players_start']]
+        alive = [s for s in state.setdefault('servers', {}).setdefault('race', []) if not _is_hidden(s) and s.get('state') in ('Lobby', 'Loading') and s['players_joined'] < s['max_players_start']]
         if not alive:
             return 400, {}
         best = alive[0]
@@ -1474,7 +1486,7 @@ def route(path, body, a):
         return 200, {'my_result': {'coin': result['coin'], 'cup': result['cup'], 'crown': result['crown']}, 'winner': {'id': winner_id} if winner_id else None}
     if path == '/game/list_freeride_servers/':
         _prune_game_servers(now)
-        return 200, {'servers': [_public_server(server) for server in state.setdefault('servers', {}).setdefault('freeride', []) if not server.get('hidden')]}
+        return 200, {'servers': [_public_server(server) for server in state.setdefault('servers', {}).setdefault('freeride', []) if not _is_hidden(server)]}
     if path == '/game/verify_server_password/':
         server = _find_server(body.get('server_id') or body.get('id'))
         if server is None:
