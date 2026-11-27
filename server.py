@@ -5,7 +5,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
 PORT = int(os.environ.get('PORT', '8899'))
-MAX_PLAYERS = max(2, min(100, int(os.environ.get('MAX_PLAYERS', '70'))))
+MAX_PLAYERS = max(2, min(100, int(os.environ.get('MAX_PLAYERS', '40'))))
 HOST = '0.0.0.0'
 DATA_DIR = os.environ.get('DATA_DIR', os.path.dirname(os.path.abspath(__file__)))
 STATE_FILE = os.path.join(DATA_DIR, 'state.json')
