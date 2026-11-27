@@ -1925,6 +1925,9 @@ def route(path, body, a):
 
 class Handler(BaseHTTPRequestHandler):
     protocol_version = 'HTTP/1.1'
+    # Without a timeout, idle keep-alive connections hold their thread forever
+    # until the process hits "can't start new thread".
+    timeout = 60
 
     def _send(self, code, obj):
         body = json.dumps(obj if obj is not None else {}).encode('utf-8')
