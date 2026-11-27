@@ -2,204 +2,373 @@
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
 <title>پنل مدیریت Animal</title>
 <style>
-:root{--bg:#0f1115;--card:#181b22;--line:#262b35;--fg:#e8ecf1;--muted:#8b93a1;--accent:#4da3ff;--ok:#37c26a;--warn:#e8b23a;--bad:#e0574c}
+:root{--bg:#0d1016;--panel:#161a22;--card:#1b2029;--line:#252b36;--fg:#e8ecf1;--muted:#8a93a3;--accent:#4da3ff;--ok:#37c26a;--warn:#e8b23a;--bad:#e0574c;--radius:14px}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,Tahoma,sans-serif}
-header{display:flex;gap:12px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-h1{font-size:18px;margin:0}
-input,select,button{font-family:inherit;font-size:14px;border-radius:10px;border:1px solid var(--line);background:#12151b;color:var(--fg);padding:8px 10px}
-button{cursor:pointer;background:#1d222c}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,Tahoma,"Vazirmatn",sans-serif;-webkit-text-size-adjust:100%}
+button,input,select,textarea{font-family:inherit;font-size:15px;color:var(--fg);background:#111419;border:1px solid var(--line);border-radius:10px;padding:9px 12px;min-height:40px}
+input:focus,button:focus{outline:none;border-color:var(--accent)}
+button{cursor:pointer;background:#1e2430;transition:border-color .15s,transform .05s}
 button:hover{border-color:var(--accent)}
+button:active{transform:scale(.98)}
 button.p{background:var(--accent);color:#06111f;border-color:transparent;font-weight:700}
 button.g{background:var(--ok);color:#04160a;border-color:transparent}
 button.b{background:var(--bad);color:#1a0605;border-color:transparent}
+button.ghost{background:transparent}
 button.on{border-color:var(--accent);color:var(--accent)}
-.wrap{padding:16px 18px}
-table{width:100%;border-collapse:collapse;font-size:14px}
-th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
-th{color:var(--muted);font-weight:600;position:sticky;top:0;background:var(--bg)}
-tr:hover td{background:#151922}
+small,.muted{color:var(--muted)}
+
+.topbar{position:sticky;top:0;z-index:5;background:rgba(13,16,22,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:12px 16px 0}
+.topbar-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.topbar h1{font-size:17px;margin:0;margin-inline-end:auto}
+.stat{color:var(--muted);font-size:13px}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding:10px 0 12px;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{white-space:nowrap;border-radius:999px;padding:7px 14px;min-height:36px;font-size:14px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:14px 16px 0}
+.toolbar input{flex:1 1 180px;min-width:0}
+.wrap{padding:14px 16px 40px}
+
+.card-list{display:flex;flex-direction:column;gap:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;display:flex;flex-direction:column;gap:10px}
+.card-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.card-title{font-weight:700;font-size:15px;margin-inline-end:auto;min-width:0;overflow-wrap:anywhere}
+.card-sub{color:var(--muted);font-size:13px;overflow-wrap:anywhere}
+.kv{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.kv b{color:var(--fg);font-weight:600}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+.actions button{min-height:36px;padding:6px 12px;font-size:14px}
 .coin{color:var(--warn);font-weight:700}
-.tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid var(--line);color:var(--muted)}
+.tag{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;border:1px solid var(--line);color:var(--muted)}
 .tag.on{color:var(--ok);border-color:#1f5c37}
 .tag.bad{color:var(--bad);border-color:#5c2520}
-.stat{display:inline-flex;gap:6px;align-items:center;color:var(--muted);font-size:13px;margin-inline-start:auto}
-.row{display:flex;gap:6px;flex-wrap:wrap}
-.tabs{display:flex;gap:6px;flex-wrap:wrap}
-.toast{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:#1d222c;border:1px solid var(--line);padding:10px 16px;border-radius:12px;opacity:0;transition:.2s;pointer-events:none}
-.toast.show{opacity:1}
-.gate{max-width:360px;margin:80px auto;padding:22px;background:var(--card);border:1px solid var(--line);border-radius:16px;display:flex;flex-direction:column;gap:10px}
-.gate h2{margin:0;font-size:16px}
-small{color:var(--muted)}
-.wrapx{overflow-x:auto}
-.msg{white-space:normal;max-width:420px}
+.tag.warn{color:var(--warn);border-color:#5a4a1a}
+.msg{white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px;line-height:1.7}
+.empty{text-align:center;color:var(--muted);padding:40px 0}
+.section-title{font-size:13px;color:var(--muted);margin:18px 0 8px}
+
+.gate{max-width:380px;margin:12vh auto 0;padding:24px;background:var(--panel);border:1px solid var(--line);border-radius:18px;display:flex;flex-direction:column;gap:12px}
+.gate h2{margin:0;font-size:18px}
+.gate input,.gate button{width:100%}
+
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:#222835;border:1px solid var(--line);padding:11px 18px;border-radius:12px;opacity:0;transition:.2s;pointer-events:none;z-index:20;max-width:90vw;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media (min-width:900px){
+  .card-list{display:none}
+  .table-wrap{display:block}
+}
+@media (max-width:899px){
+  .table-wrap{display:none}
+}
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--card)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:right;vertical-align:middle}
+th{color:var(--muted);font-weight:600;background:#151a22;position:sticky;top:0;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td .actions{flex-wrap:nowrap}
 </style>
 </head>
 <body>
 <div class="gate" id="gate">
   <h2>پنل مدیریت Animal</h2>
   <small>کلید مدیریت را وارد کن</small>
-  <input id="keyInput" type="password" placeholder="Admin key" autocomplete="off">
+  <input id="keyInput" type="password" placeholder="کلید مدیریت" autocomplete="off">
   <button class="p" onclick="saveKey()">ورود</button>
 </div>
+
 <div id="app" style="display:none">
-<header>
-  <h1>مدیریت</h1>
-  <div class="tabs">
-    <button id="tab-users" class="on" onclick="tab('users')">کاربران</button>
-    <button id="tab-perms" onclick="tab('perms')">پنل اعطای مجوز</button>
-    <button id="tab-bans" onclick="tab('bans')">سابقه بن</button>
-    <button id="tab-chat" onclick="tab('chat')">سابقه چت</button>
-    <button id="tab-police" onclick="tab('police')">سابقه پلیس</button>
-    <button id="tab-servers" onclick="tab('servers')">لابی‌ها</button>
+  <div class="topbar">
+    <div class="topbar-row">
+      <h1>مدیریت Animal</h1>
+      <span class="stat" id="stat"></span>
+      <button class="ghost" onclick="refresh()">به‌روزرسانی</button>
+      <button class="ghost" onclick="logout()">خروج</button>
+    </div>
+    <div class="tabs" id="tabs">
+      <button data-tab="users" class="on" onclick="tab('users')">کاربران</button>
+      <button data-tab="police" onclick="tab('police')">مجوز پلیس</button>
+      <button data-tab="servers" onclick="tab('servers')">لابی‌ها</button>
+      <button data-tab="bans" onclick="tab('bans')">سابقه بن</button>
+      <button data-tab="chat" onclick="tab('chat')">سابقه چت</button>
+      <button data-tab="calls" onclick="tab('calls')">سابقه پلیس</button>
+    </div>
   </div>
-  <input id="search" placeholder="جستجو نام..." oninput="render()" style="min-width:200px">
-  <input id="filterBox" placeholder="فیلتر: نام کاربر" oninput="renderTab()" style="display:none;min-width:200px">
-  <button onclick="refresh()">به‌روزرسانی</button>
-  <button class="p" onclick="giveAll()">سکه به همه</button>
-  <span class="stat" id="stat"></span>
-  <button onclick="localStorage.removeItem('animal_admin_key');location.reload()">خروج</button>
-</header>
-<div class="wrap" id="usersView">
-<div class="wrapx">
-<table>
-<thead><tr><th>#</th><th>شناسه</th><th>نام</th><th>سکه</th><th>جام</th><th>عنوان</th><th>دسترسی</th><th>عملیات</th></tr></thead>
-<tbody id="rows"></tbody>
-</table>
+
+  <div class="toolbar" id="toolbar">
+    <input id="search" placeholder="جستجو: نام یا شناسه" oninput="renderTab()">
+    <input id="roomBox" placeholder="اتاق چت (پیش‌فرض PublicChat)" value="PublicChat" style="display:none" oninput="renderTab()">
+    <button class="g" id="giveAllBtn" onclick="giveAll()">سکه به همه</button>
+  </div>
+
+  <div class="wrap">
+    <div class="card-list" id="cards"></div>
+    <div class="table-wrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
+  </div>
 </div>
-</div>
-<div class="wrap" id="view" style="display:none"><div class="wrapx"><table><thead id="vhead"></thead><tbody id="vbody"></tbody></table></div></div>
-</div>
+
 <div class="toast" id="toast"></div>
+
 <script>
-var KEY='';
-var USERS=[];
-var TAB='users';
-function toast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},1600);}
-function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
-function saveKey(){KEY=document.getElementById('keyInput').value.trim();if(!KEY){toast('کلید لازم است');return;}localStorage.setItem('animal_admin_key',KEY);start();}
-async function api(path,body){
-  body=body||{};body.key=KEY;
-  var r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  var j={};try{j=await r.json()}catch(e){}
-  if(r.status===403){toast('کلید غلط است');localStorage.removeItem('animal_admin_key');location.reload();}
+var KEY = '';
+var USERS = [];
+var TAB = 'users';
+var CACHE = {};
+
+function toast(m){
+  var t = document.getElementById('toast');
+  t.textContent = m; t.classList.add('show');
+  clearTimeout(t._h); t._h = setTimeout(function(){ t.classList.remove('show'); }, 1800);
+}
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function money(n){ return Number(n || 0).toLocaleString('en-US'); }
+function fmtTime(t){ return String(t || '').replace('T', ' ').slice(0, 19); }
+function q(){ return document.getElementById('search').value.trim().toLowerCase(); }
+
+function saveKey(){
+  KEY = document.getElementById('keyInput').value.trim();
+  if (!KEY) { toast('کلید لازم است'); return; }
+  localStorage.setItem('animal_admin_key', KEY);
+  start();
+}
+function logout(){ localStorage.removeItem('animal_admin_key'); location.reload(); }
+
+async function api(path, body){
+  body = body || {}; body.key = KEY;
+  var r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  var j = {};
+  try { j = await r.json(); } catch(e) {}
+  if (r.status === 403) { toast('کلید غلط است'); logout(); }
   return j;
 }
-function money(n){return Number(n||0).toLocaleString('en-US');}
-function filterVal(){return document.getElementById('filterBox').value.trim();}
 
-async function refresh(){
-  var j=await api('/admin/users/');USERS=(j.users||[]);
-  document.getElementById('stat').textContent=USERS.length+' کاربر';
-  if(TAB==='users')render();else renderTab();
+function start(){
+  document.getElementById('gate').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  refresh();
 }
 
-function tab(t){
-  TAB=t;
-  ['users','perms','bans','chat','police','servers'].forEach(function(x){document.getElementById('tab-'+x).classList.toggle('on',x===t);});
-  document.getElementById('usersView').style.display=t==='users'?'block':'none';
-  document.getElementById('view').style.display=t==='users'?'none':'block';
-  document.getElementById('search').style.display=t==='users'?'inline-block':'none';
-  document.getElementById('filterBox').style.display=t==='users'?'none':'inline-block';
+async function refresh(){
+  var j = await api('/admin/users/');
+  USERS = j.users || [];
+  document.getElementById('stat').textContent = USERS.length + ' کاربر';
   renderTab();
 }
 
-function render(){
-  var q=document.getElementById('search').value.trim().toLowerCase();
-  var rows=USERS.filter(function(u){return !q||String(u.handle||'').toLowerCase().includes(q)||String(u.username||'').toLowerCase().includes(q);});
-  var h='';
-  rows.forEach(function(u){
-    var acc=(u.bazras?'<span class="tag on">بازرسی</span> ':'')+(u.free_admin?'<span class="tag on">ادمین</span> ':'')+(u.ban_time>0?'<span class="tag bad">بن</span>':'');
-    h+='<tr><td>'+esc(u.id)+'</td><td>'+esc(u.username)+'</td><td>'+esc(u.handle)+'</td>'+
-      '<td class="coin">'+money(u.coin)+'</td><td>'+money(u.cup)+'</td><td>'+esc(u.title||'-')+'</td><td>'+acc+'</td>'+
-      '<td><div class="row">'+
-      '<button class="g" onclick="give('+u.id+',10000)">+۱۰هزار</button>'+
-      '<button class="g" onclick="give('+u.id+',100000)">+۱۰۰هزار</button>'+
-      '<button onclick="setCoin('+u.id+')">تعیین سکه</button>'+
-      '<button onclick="title('+u.id+')">عنوان</button>'+
-      '<button class="p" onclick="bazras('+u.id+','+(u.bazras?'false':'true')+')">'+(u.bazras?'گرفتن بازرسی':'دادن بازرسی')+'</button>'+
-      '<button class="p" onclick="adm('+u.id+','+(u.free_admin?'false':'true')+')">'+(u.free_admin?'گرفتن ادمین':'دادن ادمین')+'</button>'+
-      (u.ban_time>0?'<button onclick="unban('+u.id+')">رفع بن</button>':'<button class="b" onclick="ban('+u.id+')">بن ۱ساعت</button>')+
-      '<button onclick="userHist(\''+esc(u.username)+'\')">سابقه</button>'+
-      '</div></td></tr>';
-  });
-  document.getElementById('rows').innerHTML=h||'<tr><td colspan="8">کاربری نیست</td></tr>';
+function tab(t){
+  TAB = t;
+  document.querySelectorAll('#tabs button').forEach(function(b){ b.classList.toggle('on', b.dataset.tab === t); });
+  document.getElementById('roomBox').style.display = t === 'chat' ? 'block' : 'none';
+  document.getElementById('giveAllBtn').style.display = t === 'users' ? 'inline-block' : 'none';
+  document.getElementById('search').placeholder = t === 'users' || t === 'police' ? 'جستجو: نام یا شناسه' : 'فیلتر: نام کاربر';
+  renderTab();
 }
 
-function setView(head, rows, empty){
-  document.getElementById('vhead').innerHTML='<tr>'+head.map(function(x){return '<th>'+esc(x)+'</th>';}).join('')+'</tr>';
-  document.getElementById('vbody').innerHTML=rows.length?rows.join(''):'<tr><td colspan="'+head.length+'">'+esc(empty)+'</td></tr>';
+// Build the same content as a card list (phones) and a table (wide screens).
+function show(columns, rows, emptyText){
+  var head = '<tr>' + columns.map(function(c){ return '<th>' + esc(c) + '</th>'; }).join('') + '</tr>';
+  document.getElementById('thead').innerHTML = head;
+  document.getElementById('tbody').innerHTML = rows.length ? rows.map(function(r){
+    return '<tr>' + r.cells.map(function(c){ return '<td>' + c + '</td>'; }).join('') + '</tr>';
+  }).join('') : '<tr><td colspan="' + columns.length + '" class="empty">' + esc(emptyText) + '</td></tr>';
+  document.getElementById('cards').innerHTML = rows.length ? rows.map(function(r){ return r.card; }).join('') : '<div class="empty">' + esc(emptyText) + '</div>';
 }
-function cell(v,cls){return '<td'+(cls?' class="'+cls+'"':'')+'>'+esc(v)+'</td>';}
-var KIND_FA={server_rename:'تغییر اسم لابی',server_hide:'پنهان کردن لابی',server_show:'نمایش لابی',grant_bazras:'دادن بازرسی',revoke_bazras:'گرفتن بازرسی',grant_admin:'دادن ادمین',revoke_admin:'گرفتن ادمین',ban:'بن',unban:'رفع بن',give_coin:'افزودن سکه',set_coin:'تعیین سکه',set_title:'تغییر عنوان'};
 
-async function renderTab(){
-  var f=filterVal();
-  if(TAB==='users'){render();return;}
-  if(TAB==='perms'){
-    var holders=USERS.filter(function(u){return u.bazras||u.free_admin;});
-    var hrows=holders.map(function(u){return '<tr>'+cell(u.username)+cell(u.handle)+cell(u.bazras?'بله':'خیر')+cell(u.free_admin?'بله':'خیر')+'</tr>';});
-    var j=await api('/admin/logs/',{kinds:['grant_bazras','revoke_bazras','grant_admin','revoke_admin'],user:f,limit:300});
-    var lrows=(j.logs||[]).map(function(e){return '<tr>'+cell(e.time)+cell(e.actor)+cell(e.target)+cell(KIND_FA[e.kind]||e.kind)+'</tr>';});
-    document.getElementById('vhead').innerHTML='<tr><th colspan="4">دارندگان فعلی مجوز</th></tr><tr><th>نام کاربری</th><th>نام نمایشی</th><th>بازرسی</th><th>ادمین</th></tr>';
-    document.getElementById('vbody').innerHTML=(hrows.join('')||'<tr><td colspan="4">کسی مجوز ندارد</td></tr>')+
-      '<tr><th colspan="4">تاریخچه اعطا و لغو مجوز</th></tr><tr><th>زمان (UTC)</th><th>توسط</th><th>کاربر</th><th>عمل</th></tr>'+
-      (lrows.join('')||'<tr><td colspan="4">چیزی ثبت نشده</td></tr>');
-    return;
-  }
-  if(TAB==='bans'){
-    var b=await api('/admin/logs/',{kinds:['ban','unban'],user:f,limit:300});
-    var brows=(b.logs||[]).map(function(e){return '<tr>'+cell(e.time)+cell(e.actor)+cell(e.target)+cell(KIND_FA[e.kind]||e.kind)+cell(e.detail)+'</tr>';});
-    setView(['زمان (UTC)','توسط','کاربر','عمل','جزئیات'],brows,'سابقه‌ای نیست');
-    return;
-  }
-  if(TAB==='chat'){
-    var c=await api('/admin/chat/',{room:'PublicChat',user:f});
-    var crows=(c.messages||[]).map(function(m){return '<tr>'+cell(m.create_time)+cell(m.handle)+cell(m.sender_id)+'<td class="msg">'+esc(m.content)+'</td></tr>';});
-    setView(['زمان (UTC)','نام نمایشی','کاربری','پیام'],crows,'پیامی نیست (فقط ۲۰۰ پیام آخر هر اتاق نگه داشته می‌شود)');
-    return;
-  }
-  if(TAB==='servers'){
-    var sv=await api('/admin/servers/');
-    var srows=(sv.servers||[]).map(function(s){
-      return '<tr>'+cell(s.id)+cell(s.mode)+cell(s.name)+cell(s.players+' / '+s.max)+cell(s.state)+
-        '<td><span class="tag '+(s.hidden?'bad':'on')+'">'+(s.hidden?'پنهان':'نمایش')+'</span></td>'+
-        '<td><div class="row"><button onclick="renameServer('+s.id+')">تغییر اسم</button>'+
-        (s.hidden?'<button class="g" onclick="hideServer('+s.id+',false)">نمایش</button>':'<button class="b" onclick="hideServer('+s.id+',true)">پنهان کن</button>')+
-        '</div></td></tr>';
+function renderTab(){
+  if (TAB === 'users') return renderUsers();
+  if (TAB === 'police') return renderPolice();
+  if (TAB === 'servers') return renderServers();
+  if (TAB === 'bans') return renderBans();
+  if (TAB === 'chat') return renderChat();
+  if (TAB === 'calls') return renderCalls();
+}
+
+function userActions(u){
+  return '<div class="actions">' +
+      '<button class="g" onclick="give(' + u.id + ',10000)">+۱۰هزار</button>' +
+      '<button class="g" onclick="give(' + u.id + ',100000)">+۱۰۰هزار</button>' +
+      '<button onclick="setCoin(' + u.id + ')">تعیین سکه</button>' +
+      '<button onclick="title(' + u.id + ')">عنوان</button>' +
+      '<button class="p" onclick="bazras(' + u.id + ',' + (u.bazras ? 'false' : 'true') + ')">' + (u.bazras ? 'گرفتن بازرسی' : 'دادن بازرسی') + '</button>' +
+      '<button class="p" onclick="adm(' + u.id + ',' + (u.free_admin ? 'false' : 'true') + ')">' + (u.free_admin ? 'گرفتن ادمین' : 'دادن ادمین') + '</button>' +
+      '<button onclick="police(' + u.id + ',' + (u.police_license ? 'false' : 'true') + ')">' + (u.police_license ? 'گرفتن مجوز پلیس' : 'دادن مجوز پلیس') + '</button>' +
+      (u.ban_time > 0 ? '<button onclick="unban(' + u.id + ')">رفع بن</button>' : '<button class="b" onclick="ban(' + u.id + ')">بن ۱ ساعت</button>') +
+      '<button class="ghost" onclick="userHist(\'' + esc(u.username) + '\')">سابقه</button>' +
+    '</div>';
+}
+
+function userCard(u){
+  var tags = (u.bazras ? '<span class="tag on">بازرسی</span> ' : '') +
+             (u.free_admin ? '<span class="tag on">ادمین</span> ' : '') +
+             (u.police_license ? '<span class="tag warn">مجوز پلیس</span> ' : '') +
+             (u.ban_time > 0 ? '<span class="tag bad">بن</span>' : '');
+  return '<div class="card">' +
+    '<div class="card-head"><div class="card-title">' + esc(u.handle) + ' <small>(' + esc(u.username) + ')</small></div>' + tags + '</div>' +
+    '<div class="kv"><span>سکه: <b class="coin">' + money(u.coin) + '</b></span><span>جام: <b>' + money(u.cup) + '</b></span><span>عنوان: <b>' + esc(u.title || '-') + '</b></span></div>' +
+    userActions(u) + '</div>';
+}
+
+function renderUsers(){
+  var s = q();
+  var rows = USERS.filter(function(u){ return !s || String(u.handle || '').toLowerCase().includes(s) || String(u.username || '').toLowerCase().includes(s); })
+    .map(function(u){
+      return {
+        cells: [esc(u.id), esc(u.username), esc(u.handle),
+                '<span class="coin">' + money(u.coin) + '</span>', money(u.cup), esc(u.title || '-'),
+                (u.bazras ? 'بازرسی ' : '') + (u.free_admin ? 'ادمین ' : '') + (u.police_license ? 'پلیس ' : '') + (u.ban_time > 0 ? 'بن' : ''),
+                userActions(u)],
+        card: userCard(u)
+      };
     });
-    setView(['شناسه','نوع','نام','بازیکن','وضعیت','نمایش','عملیات'],srows,'لابی فعالی نیست');
-    return;
-  }
-  if(TAB==='police'){
-    var p=await api('/admin/police/');
-    var fl=f.toLowerCase();
-    var prows=(p.calls||[]).filter(function(x){return !fl||String(x.caller_id||'').toLowerCase().includes(fl)||String(x.guilty||'').toLowerCase().includes(fl);})
-      .map(function(x){return '<tr>'+cell(x.created_at)+cell(x.caller_handle||x.caller_id)+cell(x.guilty_handle||x.guilty||'-')+cell(x.crime)+cell(x.location)+'<td><span class="tag '+(x.active?'on':'')+'">'+(x.active?'فعال':'بسته')+'</span></td></tr>';});
-    setView(['زمان (UTC)','تماس‌گیرنده','متهم','جرم','مکان','وضعیت'],prows,'تماسی ثبت نشده');
-    return;
-  }
+  show(['شناسه','نام کاربری','نام','سکه','جام','عنوان','وضعیت','عملیات'], rows, 'کاربری پیدا نشد');
 }
 
-async function renameServer(id){var n=prompt('اسم جدید لابی؟');if(n===null||!n.trim())return;await api('/admin/server_rename/',{server_id:id,name:n.trim()});toast('اسم عوض شد');renderTab();}
-async function hideServer(id,v){await api('/admin/server_hide/',{server_id:id,hidden:v});toast(v?'پنهان شد':'نمایش داده شد');renderTab();}
+function renderPolice(){
+  var s = q();
+  var list = USERS.filter(function(u){ return !s || String(u.handle || '').toLowerCase().includes(s) || String(u.username || '').toLowerCase().includes(s); });
+  var rows = list.map(function(u){
+    var btn = '<button class="' + (u.police_license ? 'b' : 'g') + '" onclick="police(' + u.id + ',' + (u.police_license ? 'false' : 'true') + ')">' + (u.police_license ? 'گرفتن مجوز' : 'دادن مجوز') + '</button>';
+    return {
+      cells: [esc(u.handle), esc(u.username), u.police_license ? '<span class="tag on">دارد</span>' : '<span class="tag">ندارد</span>', btn],
+      card: '<div class="card"><div class="card-head"><div class="card-title">' + esc(u.handle) + ' <small>(' + esc(u.username) + ')</small></div>' +
+            (u.police_license ? '<span class="tag on">دارد</span>' : '<span class="tag">ندارد</span>') + '</div>' +
+            '<div class="actions">' + btn + '</div></div>'
+    };
+  });
+  show(['نام','نام کاربری','مجوز پلیس','عملیات'], rows, 'کاربری پیدا نشد');
+}
+
+async function renderServers(){
+  var j = await api('/admin/servers/');
+  CACHE.servers = j.servers || [];
+  var s = q();
+  var list = CACHE.servers.filter(function(x){ return !s || String(x.name || '').toLowerCase().includes(s); });
+  var rows = list.map(function(x){
+    var allowed = (x.allowed && x.allowed.length) ? x.allowed.join('، ') : 'همه';
+    var actions = '<button onclick="renameServer(' + x.id + ')">تغییر اسم</button>' +
+      '<button onclick="accessServer(' + x.id + ')">افراد مجاز</button>' +
+      (x.hidden ? '<button class="g" onclick="hideServer(' + x.id + ',false)">نمایش</button>' : '<button class="b" onclick="hideServer(' + x.id + ',true)">پنهان کن</button>');
+    return {
+      cells: [esc(x.id), esc(x.mode), esc(x.name), esc(x.players + ' / ' + x.max), esc(x.state),
+              '<span class="tag ' + (x.hidden ? 'bad' : 'on') + '">' + (x.hidden ? 'پنهان' : 'نمایش') + '</span>',
+              esc(allowed), '<div class="actions">' + actions + '</div>'],
+      card: '<div class="card"><div class="card-head"><div class="card-title">' + esc(x.name) + ' <small>#' + esc(x.id) + ' · ' + esc(x.mode) + '</small></div>' +
+            '<span class="tag ' + (x.hidden ? 'bad' : 'on') + '">' + (x.hidden ? 'پنهان' : 'نمایش') + '</span></div>' +
+            '<div class="kv"><span>بازیکن: <b>' + esc(x.players + ' / ' + x.max) + '</b></span><span>وضعیت: <b>' + esc(x.state) + '</b></span></div>' +
+            '<div class="card-sub">مجاز: ' + esc(allowed) + '</div>' +
+            '<div class="actions">' + actions + '</div></div>'
+    };
+  });
+  show(['شناسه','نوع','نام','بازیکن','وضعیت','نمایش','افراد مجاز','عملیات'], rows, 'لابی فعالی نیست');
+}
+
+async function renderBans(){
+  var f = document.getElementById('search').value.trim();
+  var j = await api('/admin/logs/', {kinds:['ban','unban'], user: f, limit: 300});
+  var rows = (j.logs || []).map(function(e){
+    return {
+      cells: [esc(fmtTime(e.time)), esc(e.actor), esc(e.target), esc(KIND_FA[e.kind] || e.kind), esc(e.detail)],
+      card: '<div class="card"><div class="card-head"><div class="card-title">' + esc(e.target) + '</div><span class="tag ' + (e.kind === 'ban' ? 'bad' : 'on') + '">' + esc(KIND_FA[e.kind] || e.kind) + '</span></div>' +
+            '<div class="kv"><span>توسط: <b>' + esc(e.actor) + '</b></span><span>' + esc(fmtTime(e.time)) + '</span></div>' +
+            (e.detail ? '<div class="card-sub">' + esc(e.detail) + '</div>' : '') + '</div>'
+    };
+  });
+  show(['زمان (UTC)','توسط','کاربر','عمل','جزئیات'], rows, 'سابقه‌ای نیست');
+}
+
+// Chat messages are stored as text, or as a JSON object for some messages. Show the text only.
+function msgText(c){
+  if (c == null) return '';
+  if (typeof c === 'object') return String(c.text || c.message || c.msg || c.content || JSON.stringify(c));
+  var s = String(c);
+  try {
+    var o = JSON.parse(s);
+    if (typeof o === 'string') return o;
+    if (o && typeof o === 'object') return String(o.text || o.message || o.msg || o.content || s);
+  } catch (e) {}
+  return s;
+}
+
+async function renderChat(){
+  var room = document.getElementById('roomBox').value.trim() || 'PublicChat';
+  var f = document.getElementById('search').value.trim();
+  var j = await api('/admin/chat/', {room: room, user: f});
+  var rows = (j.messages || []).map(function(m){
+    var text = msgText(m.content);
+    return {
+      cells: [esc(fmtTime(m.create_time)), esc(m.handle), esc(m.sender_id), '<div class="msg">' + esc(text) + '</div>'],
+      card: '<div class="card"><div class="card-head"><div class="card-title">' + esc(m.handle) + ' <small>(' + esc(m.sender_id) + ')</small></div><small>' + esc(fmtTime(m.create_time)) + '</small></div>' +
+            '<div class="msg">' + esc(text) + '</div></div>'
+    };
+  });
+  show(['زمان (UTC)','نام نمایشی','کاربری','پیام'], rows, 'پیامی نیست (فقط ۲۰۰ پیام آخر هر اتاق نگه داشته می‌شود)');
+}
+
+async function renderCalls(){
+  var f = document.getElementById('search').value.trim().toLowerCase();
+  var j = await api('/admin/police/');
+  var list = (j.calls || []).filter(function(x){ return !f || String(x.caller_id || '').toLowerCase().includes(f) || String(x.guilty || '').toLowerCase().includes(f); });
+  var rows = list.map(function(x){
+    var st = x.active ? '<span class="tag on">فعال</span>' : '<span class="tag">بسته</span>';
+    return {
+      cells: [esc(fmtTime(x.created_at)), esc(x.caller_handle || x.caller_id), esc(x.guilty_handle || x.guilty || '-'), esc(x.crime), esc(x.location), st],
+      card: '<div class="card"><div class="card-head"><div class="card-title">' + esc(x.crime || 'بدون جرم') + '</div>' + st + '</div>' +
+            '<div class="kv"><span>تماس‌گیرنده: <b>' + esc(x.caller_handle || x.caller_id) + '</b></span><span>متهم: <b>' + esc(x.guilty_handle || x.guilty || '-') + '</b></span></div>' +
+            '<div class="card-sub">' + esc(fmtTime(x.created_at)) + (x.location ? ' · ' + esc(x.location) : '') + '</div></div>'
+    };
+  });
+  show(['زمان (UTC)','تماس‌گیرنده','متهم','جرم','مکان','وضعیت'], rows, 'تماسی ثبت نشده');
+}
+
+var KIND_FA = {
+  server_rename:'تغییر اسم لابی', server_hide:'پنهان کردن لابی', server_show:'نمایش لابی', server_access:'تغییر افراد مجاز لابی',
+  grant_bazras:'دادن بازرسی', revoke_bazras:'گرفتن بازرسی', grant_admin:'دادن ادمین', revoke_admin:'گرفتن ادمین',
+  grant_police:'دادن مجوز پلیس', revoke_police:'گرفتن مجوز پلیس',
+  ban:'بن', unban:'رفع بن', give_coin:'افزودن سکه', set_coin:'تعیین سکه', set_title:'تغییر عنوان'
+};
+
 function userHist(username){
-  document.getElementById('filterBox').value=username;
+  document.getElementById('search').value = username;
   tab('bans');
 }
-async function give(id,a){await api('/admin/give_coin/',{id:id,amount:a});toast('سکه اضافه شد');refresh();}
-async function setCoin(id){var v=prompt('سکه جدید؟');if(v===null)return;await api('/admin/set_coin/',{id:id,amount:parseInt(v||'0')});toast('تنظیم شد');refresh();}
-async function title(id){var t=prompt('عنوان جدید؟ (خالی = پاک)');if(t===null)return;await api('/admin/set_title/',{id:id,title:t});toast('عنوان ثبت شد');refresh();}
-async function bazras(id,v){await api('/admin/grant_bazras/',{id:id,value:v});toast(v?'پنل بازرسی داده شد':'بازرسی گرفته شد');refresh();}
-async function adm(id,v){await api('/admin/grant_bazras/',{id:id,admin:v});toast(v?'ادمین داده شد':'ادمین گرفته شد');refresh();}
-async function ban(id){await api('/admin/ban/',{id:id,hours:1});toast('بن شد');refresh();}
-async function unban(id){await api('/admin/unban/',{id:id});toast('رفع بن شد');refresh();}
-async function giveAll(){var v=prompt('به همه چند سکه؟','10000');if(v===null)return;var n=parseInt(v||'0');for(var i=0;i<USERS.length;i++){await api('/admin/give_coin/',{id:USERS[i].id,amount:n});}toast('به همه داده شد');refresh();}
-function start(){document.getElementById('gate').style.display='none';document.getElementById('app').style.display='block';refresh();}
-(function(){var k=localStorage.getItem('animal_admin_key');if(k){KEY=k;start();}})();
+
+async function give(id,a){ await api('/admin/give_coin/', {id:id, amount:a}); toast('سکه اضافه شد'); refresh(); }
+async function setCoin(id){ var v = prompt('سکه جدید؟'); if (v === null) return; await api('/admin/set_coin/', {id:id, amount:parseInt(v || '0', 10)}); toast('تنظیم شد'); refresh(); }
+async function title(id){ var t = prompt('عنوان جدید؟ (خالی = پاک)'); if (t === null) return; await api('/admin/set_title/', {id:id, title:t}); toast('عنوان ثبت شد'); refresh(); }
+async function bazras(id,v){ await api('/admin/grant_bazras/', {id:id, value:v}); toast(v ? 'پنل بازرسی داده شد' : 'بازرسی گرفته شد'); refresh(); }
+async function adm(id,v){ await api('/admin/grant_bazras/', {id:id, admin:v}); toast(v ? 'ادمین داده شد' : 'ادمین گرفته شد'); refresh(); }
+async function police(id,v){ await api('/admin/grant_police/', {id:id, value:v}); toast(v ? 'مجوز پلیس داده شد' : 'مجوز پلیس گرفته شد'); refresh(); }
+async function ban(id){ await api('/admin/ban/', {id:id, hours:1}); toast('بن شد'); refresh(); }
+async function unban(id){ await api('/admin/unban/', {id:id}); toast('رفع بن شد'); refresh(); }
+async function giveAll(){
+  var v = prompt('به همه چند سکه؟', '10000'); if (v === null) return;
+  var n = parseInt(v || '0', 10);
+  for (var i = 0; i < USERS.length; i++) { await api('/admin/give_coin/', {id: USERS[i].id, amount: n}); }
+  toast('به همه داده شد'); refresh();
+}
+
+async function renameServer(id){
+  var n = prompt('اسم جدید لابی؟'); if (n === null || !n.trim()) return;
+  await api('/admin/server_rename/', {server_id:id, name:n.trim()}); toast('اسم عوض شد'); renderTab();
+}
+async function hideServer(id,v){
+  await api('/admin/server_hide/', {server_id:id, hidden:v}); toast(v ? 'پنهان شد' : 'نمایش داده شد'); renderTab();
+}
+async function accessServer(id){
+  var cur = (CACHE.servers || []).find(function(x){ return x.id === id; });
+  var v = prompt('نام کاربری افراد مجاز، با ویرگول جدا کن.\nخالی بگذار تا همه بتوانند وارد شوند.', cur && cur.allowed ? cur.allowed.join(',') : '');
+  if (v === null) return;
+  await api('/admin/server_access/', {server_id:id, usernames:v});
+  toast('لیست افراد مجاز ذخیره شد'); renderTab();
+}
+
+(function(){
+  var k = localStorage.getItem('animal_admin_key');
+  if (k) { KEY = k; start(); }
+})();
 </script>
 </body>
 </html>

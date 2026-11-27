@@ -439,6 +439,16 @@ def _is_hidden(server):
     return False
 
 
+def _visible_to(server, account):
+    # Lobbies with an allowed list are only offered to those players (and the owner).
+    allowed = server.get('allowed') or []
+    if not allowed:
+        return True
+    if not account:
+        return False
+    return account.get('username') in allowed or account.get('username') == server.get('owner_id')
+
+
 def _server_name(mode, ip, sid):
     # SERVER_NAMES="host-part=Display Name;host-part=Display Name"
     # The first entry whose host-part appears in the registered address wins.
@@ -585,6 +595,7 @@ def admin_users():
             'bazras': bool(acct.get('bazras')),
             'free_admin': bool(acct.get('free_admin')),
             'ban_time': acct.get('ban_time', 0),
+            'police_license': bool(acct.get('police_license')),
             'online': False,
         })
     out.sort(key=lambda r: r['coin'], reverse=True)
@@ -637,6 +648,22 @@ def route_admin(path, body):
         _log_event('server_rename', ADMIN_ACTOR, s.get('name', ''), 'id=' + str(s.get('id')))
         save_state()
         return 200, {'ok': True}
+    if path == '/admin/server_access/':
+        s = _find_server(body.get('server_id'))
+        if s is None:
+            return 404, {'error': 'no such server'}
+        raw = body.get('usernames') or []
+        if isinstance(raw, str):
+            raw = raw.replace('\n', ',').split(',')
+        names = []
+        for n in raw:
+            n = str(n).strip()
+            if n and n not in names:
+                names.append(n[:64])
+        s['allowed'] = names[:200]
+        _log_event('server_access', ADMIN_ACTOR, s.get('name', ''), 'id=' + str(s.get('id')) + ' ' + str(len(names)) + ' نفر')
+        save_state()
+        return 200, {'ok': True, 'allowed': s['allowed']}
     if path == '/admin/server_hide/':
         s = _find_server(body.get('server_id'))
         if s is None:
@@ -659,7 +686,7 @@ def route_admin(path, body):
             for s in state.setdefault('servers', {}).setdefault(mode_key, []):
                 rows.append({'id': s.get('id'), 'mode': s.get('mode'), 'name': s.get('name', ''), 'ip': s.get('ip', ''),
                              'players': s.get('players_joined', 0), 'max': s.get('max_players_start', 32),
-                             'state': s.get('state', ''), 'hidden': _is_hidden(s), 'updated_at': s.get('updated_at', 0)})
+                             'state': s.get('state', ''), 'hidden': _is_hidden(s), 'allowed': s.get('allowed', []), 'updated_at': s.get('updated_at', 0)})
         return 200, {'servers': rows}
     if path == '/admin/police/':
         calls = list(state.get('police_calls', []))
@@ -698,6 +725,9 @@ def route_admin(path, body):
     elif path == '/admin/set_coin/':
         target['coin'] = amount
         _log_event('set_coin', ADMIN_ACTOR, target['username'], amount)
+    elif path == '/admin/grant_police/':
+        target['police_license'] = bool(body.get('value'))
+        _log_event('grant_police' if target['police_license'] else 'revoke_police', ADMIN_ACTOR, target['username'])
     else:
         return 404, {'error': 'unknown admin route'}
     save_state()
@@ -1446,7 +1476,7 @@ def route(path, body, a):
         return 200, {'game_id': game_id, 'container_id': container_id, 'qualified_count': max(1, (count + 1) // 2)}
     if path == '/game/find_game_v2/':
         _prune_game_servers(now)
-        alive = [s for s in state.setdefault('servers', {}).setdefault('race', []) if not _is_hidden(s) and s.get('state') in ('Lobby', 'Loading') and s['players_joined'] < s['max_players_start']]
+        alive = [s for s in state.setdefault('servers', {}).setdefault('race', []) if not _is_hidden(s) and _visible_to(s, a) and s.get('state') in ('Lobby', 'Loading') and s['players_joined'] < s['max_players_start']]
         if not alive:
             return 400, {}
         best = alive[0]
@@ -1486,7 +1516,7 @@ def route(path, body, a):
         return 200, {'my_result': {'coin': result['coin'], 'cup': result['cup'], 'crown': result['crown']}, 'winner': {'id': winner_id} if winner_id else None}
     if path == '/game/list_freeride_servers/':
         _prune_game_servers(now)
-        return 200, {'servers': [_public_server(server) for server in state.setdefault('servers', {}).setdefault('freeride', []) if not _is_hidden(server)]}
+        return 200, {'servers': [_public_server(server) for server in state.setdefault('servers', {}).setdefault('freeride', []) if not _is_hidden(server) and _visible_to(server, a)]}
     if path == '/game/verify_server_password/':
         server = _find_server(body.get('server_id') or body.get('id'))
         if server is None:
